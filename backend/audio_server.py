@@ -87,6 +87,9 @@ class AudioServer:
                 # Średnia amplituda w paśmie, pomnożona przez czułość
                 # Normalizacja (uproszczona, do dostosowania)
                 val = np.mean(fft_res[indices]) * self.sensitivity / 50.0
+                # Noise gate: jeśli wartość jest bardzo niska, ustaw dokładnie 0.0
+                if val < 0.001:
+                    val = 0.0
                 new_bands[i] = np.clip(val, 0.0, 1.0)
 
         self.current_bands = new_bands
@@ -102,10 +105,16 @@ class AudioServer:
         """Generuje syntetyczne dane do trybu demo."""
         t = time.time()
         new_bands = np.zeros(self.bands_count)
-        for i in range(self.bands_count):
-            # Mieszanka sinusów dla każdego pasma
-            val = (np.sin(t * (i + 1) * 2) + 1) / 2.0 * np.random.uniform(0.5, 1.0)
-            new_bands[i] = np.clip(val * self.sensitivity, 0.0, 1.0)
+
+        # Symulacja ciszy co jakiś czas (np. co 10 sekund na 2 sekundy)
+        if int(t) % 12 >= 10:
+            self.current_bands = np.zeros(self.bands_count)
+        else:
+            for i in range(self.bands_count):
+                # Mieszanka sinusów dla każdego pasma
+                val = (np.sin(t * (i + 1) * 2) + 1) / 2.0 * np.random.uniform(0.5, 1.0)
+                new_bands[i] = np.clip(val * self.sensitivity, 0.0, 1.0)
+            self.current_bands = new_bands
 
         self.current_bands = new_bands
         # Aktualizacja szczytów

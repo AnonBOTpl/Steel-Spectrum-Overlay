@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -49,6 +49,24 @@ function createWindow() {
     if (winConfig.x === null || winConfig.y === null) {
         mainWindow.center();
     }
+
+    // Wyłącz menu systemowe i menu aplikacji
+    Menu.setApplicationMenu(null);
+
+    // Blokowanie WM_CONTEXTMENU na Windows
+    if (process.platform === 'win32') {
+        mainWindow.hookWindowMessage(0x0313, () => {
+            mainWindow.setEnabled(false);
+            setTimeout(() => mainWindow.setEnabled(true), 100);
+            return true;
+        });
+    }
+
+    // Alternatywny trigger menu kontekstowego
+    mainWindow.webContents.on('context-menu', (e) => {
+        e.preventDefault();
+        mainWindow.webContents.send('open-settings-panel');
+    });
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 

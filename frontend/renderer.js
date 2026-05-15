@@ -71,6 +71,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         settings.applyConfigToUI();
     });
 
+    // Obsługa menu kontekstowego (Prawy przycisk myszy)
+    window.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        settings.togglePanel();
+        return false;
+    });
+
+    window.electronAPI.onOpenSettingsPanel(() => {
+        if (!settings.isOpen) {
+            settings.togglePanel();
+        }
+    });
+
     // Double click -> Toggle Click-Through (na obszarze aplikacji, poza panelem)
     document.addEventListener('dblclick', async (e) => {
         if (e.target.closest('#controls-overlay') || e.target.closest('#settings-panel')) {
