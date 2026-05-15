@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
     const visualizer = new window.Visualizer();
     const settings = new window.SettingsManager(visualizer);
 
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         socket.onopen = () => {
             console.log('POŁĄCZONO z backendem audio.');
             statusDot.className = 'connected';
+            if (statusText) statusText.textContent = 'Połączono';
             if (reconnectTimeout) {
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
@@ -43,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         socket.onclose = (event) => {
             console.log(`POŁĄCZENIE ZAMKNIĘTE (Kod: ${event.code}). Próba ponownego połączenia za 2s...`);
             statusDot.className = 'disconnected';
+            if (statusText) statusText.textContent = 'Rozłączono';
             scheduleReconnect();
         };
 
@@ -91,12 +94,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Skróty klawiszowe (Hotkey O)
     document.addEventListener('keydown', (e) => {
         if (e.key.toLowerCase() === 'o') {
-            if (config && config.visuals) {
-                const newState = !config.visuals.oscilloscopeMode;
-                config.visuals.oscilloscopeMode = newState;
-                visualizer.updateConfig(config);
+            if (settings.config && settings.config.visuals) {
+                const newState = !settings.config.visuals.oscilloscopeMode;
+                settings.config.visuals.oscilloscopeMode = newState;
+                visualizer.updateConfig(settings.config);
                 settings.applyConfigToUI();
-                window.electronAPI.saveConfig(config);
+                window.electronAPI.saveConfig(settings.config);
                 console.log(`Oscilloscope Mode: ${newState ? 'WŁ' : 'WYŁ'}`);
             }
         }

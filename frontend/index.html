@@ -11,15 +11,24 @@
         <!-- Canvas do wizualizacji -->
         <canvas id="visualizer-canvas"></canvas>
 
-        <!-- Nakładka interaktywna (no-drag region) -->
-        <div id="controls-overlay">
-            <div id="status-dot" class="disconnected" title="Status połączenia"></div>
-            <div id="settings-trigger" title="Ustawienia">⚙️</div>
-        </div>
+        <!-- Warstwa interakcyjna (łapie kliknięcia) -->
+        <div class="click-layer"></div>
+
+        <!-- Nakładka do przeciągania okna -->
+        <div id="controls-overlay"></div>
 
         <!-- Panel Ustawień -->
         <div id="settings-panel" class="hidden">
             <div class="settings-content">
+                <!-- Nagłówek Panelu ze statusem -->
+                <div class="panel-header">
+                    <h3>Ustawienia</h3>
+                    <div class="status-row">
+                        <div id="status-dot" class="disconnected"></div>
+                        <span id="status-text">Rozłączono</span>
+                    </div>
+                </div>
+
                 <!-- Sekcja Audio -->
                 <section>
                     <h3>Audio</h3>

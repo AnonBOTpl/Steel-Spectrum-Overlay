@@ -24,6 +24,10 @@ class Visualizer {
         this.peakDecay = 0.99;
         this.barSpacing = 4;
 
+        // Korekcja pasm (wzmocnienie wysokich tonów)
+        this.bandCorrection = [];
+        this.initBandCorrection();
+
         // Beat detection state
         this.lastBeatTime = 0;
         this.isBeatActive = false;
@@ -35,6 +39,13 @@ class Visualizer {
 
         this.canvas.style.willChange = 'transform';
         this.animate();
+    }
+
+    initBandCorrection() {
+        this.bandCorrection = new Array(this.config.bandCount).fill(0).map((_, i) => {
+            const t = i / (this.config.bandCount - 1 || 1);
+            return 1.0 + t * 3.0; // Bas x1.0, Treble x4.0
+        });
     }
 
     updateConfig(newConfig) {
@@ -65,6 +76,7 @@ class Visualizer {
 
         if (oldBandCount !== this.config.bandCount) {
             this.initDataArrays();
+            this.initBandCorrection();
         }
     }
 
@@ -85,11 +97,13 @@ class Visualizer {
 
         if (this.displayedBands.length !== this.config.bandCount) {
             this.initDataArrays();
+            this.initBandCorrection();
         }
 
         const count = Math.min(bands.length, this.config.bandCount);
         for (let i = 0; i < count; i++) {
-            const rawValue = (bands[i] || 0) * this.config.sensitivity;
+            // Zastosowanie korekcji pasma przed smoothingiem
+            const rawValue = (bands[i] || 0) * this.config.sensitivity * this.bandCorrection[i];
             const clampedValue = Math.min(Math.max(rawValue, 0), 1);
 
             if (clampedValue > this.displayedBands[i]) {
@@ -102,6 +116,7 @@ class Visualizer {
             if (this.displayedBands[i] > this.peaks[i]) {
                 this.peaks[i] = this.displayedBands[i];
             } else {
+                // Płynne opadanie do zera (bez minimalnego progu)
                 this.peaks[i] = Math.max(0, this.peaks[i] * this.peakDecay);
             }
         }
@@ -110,7 +125,6 @@ class Visualizer {
         if (this.config.beatDetection) {
             const now = Date.now();
             if (now - this.lastBeatTime > this.beatCooldown) {
-                // Monitoruj pierwsze 2 pasma (bas)
                 const bassAvg = (bands[0] + (bands[1] || bands[0])) / 2;
                 if (bassAvg > this.config.beatThreshold) {
                     this.lastBeatTime = now;
@@ -131,12 +145,8 @@ class Visualizer {
             this.currentTheme = window.THEMES[0];
         }
 
-        // Tło motywu
+        // Czyścimy do pełnej przezroczystości (Punkt 3 poprawki)
         ctx.clearRect(0, 0, width, height);
-        if (this.currentTheme) {
-            ctx.fillStyle = this.currentTheme.backgroundColor;
-            ctx.fillRect(0, 0, width, height);
-        }
 
         const effectiveGlowIntensity = this.isBeatActive ? this.config.glowIntensity * 2.5 : this.config.glowIntensity;
 
@@ -150,7 +160,6 @@ class Visualizer {
     }
 
     drawNormalBars(width, height, dpr, glow) {
-        const ctx = this.ctx;
         const barSpacing = this.barSpacing * dpr;
         const barWidth = (width - (this.config.bandCount - 1) * barSpacing) / this.config.bandCount;
 
@@ -163,13 +172,11 @@ class Visualizer {
         const barSpacing = (this.barSpacing * dpr) / 2;
         const barWidth = (centerX - (this.config.bandCount - 1) * barSpacing) / this.config.bandCount;
 
-        // Prawa strona (oryginał)
         ctx.save();
         ctx.translate(centerX, 0);
         this.renderBars(0, centerX, barWidth, barSpacing, this.displayedBands, this.peaks, dpr, glow);
         ctx.restore();
 
-        // Lewa strona (odbicie)
         ctx.save();
         ctx.translate(centerX, 0);
         ctx.scale(-1, 1);
@@ -189,11 +196,14 @@ class Visualizer {
 
         for (let i = 0; i < this.config.bandCount; i++) {
             const val = bands[i] || 0;
+            // Pełna wysokość (1.0 = 100% height)
             const barHeight = val * height;
+
+            // Próg rysowania (Punkt 6 poprawki)
+            if (val <= 0.002) continue;
+
             const x = startX + i * (barWidth + barSpacing);
             const y = height - barHeight;
-
-            if (barHeight < 1) continue;
 
             const gradient = this.getBarGradient(x, height, y);
             ctx.fillStyle = gradient;
@@ -207,7 +217,7 @@ class Visualizer {
             }
             ctx.fill();
 
-            if (this.config.peakIndicators && peaks[i] > 0.01) {
+            if (this.config.peakIndicators && peaks[i] > 0.002) {
                 const peakY = height - (peaks[i] * height);
                 const prevShadow = ctx.shadowBlur;
                 ctx.shadowBlur = 0;
@@ -239,7 +249,7 @@ class Visualizer {
 
         for (let i = 0; i < count; i++) {
             const x = i * step;
-            const y = height - (bands[i] * height * 0.8) - (height * 0.1); // Wyśrodkowanie pionowe fali
+            const y = height - (bands[i] * height * 0.8) - (height * 0.1);
 
             if (i === 0) {
                 ctx.moveTo(x, y);
