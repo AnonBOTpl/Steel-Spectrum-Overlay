@@ -3,38 +3,42 @@ const themes = [
         name: "Neon Cyberpunk",
         barGradient: ["#ff00ff", "#00ffff"],
         peakColor: "#ffffff",
-        glowColor: "#ff00ff",
-        backgroundColor: "rgba(10, 0, 10, 0.90)"
+        glowColor: "#bf00ff",
+        backgroundColor: "rgba(5, 5, 20, 0.85)"
     },
     {
         name: "Solar Flare",
-        barGradient: ["#ff0000", "#ffaa00"],
-        peakColor: "#ffff00",
-        glowColor: "#ff4400",
-        backgroundColor: "rgba(20, 5, 0, 0.90)"
+        barGradient: ["#ff4500", "#ffdd00"],
+        peakColor: "#ffffff",
+        glowColor: "#ff6600",
+        backgroundColor: "rgba(10, 5, 0, 0.90)"
     },
     {
         name: "Matrix Green",
-        barGradient: ["#003300", "#00ff00"],
-        peakColor: "#ccffcc",
-        glowColor: "#00ff00",
-        backgroundColor: "rgba(0, 5, 0, 0.95)"
+        barGradient: ["#003300", "#00ff41"],
+        peakColor: "#00ff41",
+        glowColor: "#00cc33",
+        backgroundColor: "rgba(0, 8, 0, 0.88)"
     },
     {
         name: "Arctic Ice",
-        barGradient: ["#000080", "#00ffff"],
+        barGradient: ["#004466", "#aaeeff"],
         peakColor: "#ffffff",
-        glowColor: "#00ccff",
-        backgroundColor: "rgba(0, 5, 15, 0.90)"
+        glowColor: "#00aaff",
+        backgroundColor: "rgba(0, 10, 20, 0.80)"
     },
     {
         name: "Synthwave Dusk",
-        barGradient: ["#6600ff", "#ff0066", "#ffcc00"],
-        peakColor: "#ffffff",
+        barGradient: ["#6600ff", "#ff0066", "#ffaa00"], // 3-kolorowy
+        peakColor: "#ffaa00",
         glowColor: "#ff0066",
-        backgroundColor: "rgba(15, 0, 20, 0.90)"
+        backgroundColor: "rgba(15, 0, 25, 0.92)"
     }
 ];
 
-// Eksport do okna globalnego dla prostoty w Vanilla JS
+function getTheme(name) {
+    return themes.find(t => t.name === name) || themes[0];
+}
+
 window.THEMES = themes;
+window.getTheme = getTheme;

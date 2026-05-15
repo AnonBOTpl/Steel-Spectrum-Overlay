@@ -88,6 +88,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Skróty klawiszowe (Hotkey O)
+    document.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'o') {
+            if (config && config.visuals) {
+                const newState = !config.visuals.oscilloscopeMode;
+                config.visuals.oscilloscopeMode = newState;
+                visualizer.updateConfig(config);
+                settings.applyConfigToUI();
+                window.electronAPI.saveConfig(config);
+                console.log(`Oscilloscope Mode: ${newState ? 'WŁ' : 'WYŁ'}`);
+            }
+        }
+    });
+
     // Start połączenia
     connectWebSocket();
 });

@@ -11,7 +11,11 @@ class Visualizer {
             peakIndicators: true,
             glowIntensity: 15,
             glowSpread: 8,
-            barOpacity: 0.9
+            barOpacity: 0.9,
+            mirrorMode: false,
+            oscilloscopeMode: false,
+            beatDetection: true,
+            beatThreshold: 0.7
         };
 
         this.currentTheme = null;
@@ -19,6 +23,12 @@ class Visualizer {
         this.peaks = [];
         this.peakDecay = 0.99;
         this.barSpacing = 4;
+
+        // Beat detection state
+        this.lastBeatTime = 0;
+        this.isBeatActive = false;
+        this.beatDuration = 80;
+        this.beatCooldown = 200;
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -43,13 +53,13 @@ class Visualizer {
             this.config.glowIntensity = newConfig.visuals.glowIntensity;
             this.config.glowSpread = newConfig.visuals.glowSpread;
             this.config.barOpacity = newConfig.visuals.barOpacity;
+            this.config.mirrorMode = newConfig.visuals.mirrorMode;
+            this.config.oscilloscopeMode = newConfig.visuals.oscilloscopeMode;
+            this.config.beatDetection = newConfig.visuals.beatDetection;
+            this.config.beatThreshold = newConfig.visuals.beatThreshold;
 
-            // Wybór motywu
-            if (window.THEMES) {
-                const foundTheme = window.THEMES.find(t => t.name === newConfig.visuals.theme);
-                if (foundTheme) {
-                    this.currentTheme = foundTheme;
-                }
+            if (window.getTheme) {
+                this.currentTheme = window.getTheme(newConfig.visuals.theme);
             }
         }
 
@@ -95,6 +105,20 @@ class Visualizer {
                 this.peaks[i] = Math.max(0, this.peaks[i] * this.peakDecay);
             }
         }
+
+        // Beat Detection
+        if (this.config.beatDetection) {
+            const now = Date.now();
+            if (now - this.lastBeatTime > this.beatCooldown) {
+                // Monitoruj pierwsze 2 pasma (bas)
+                const bassAvg = (bands[0] + (bands[1] || bands[0])) / 2;
+                if (bassAvg > this.config.beatThreshold) {
+                    this.lastBeatTime = now;
+                    this.isBeatActive = true;
+                    setTimeout(() => this.isBeatActive = false, this.beatDuration);
+                }
+            }
+        }
     }
 
     draw() {
@@ -103,44 +127,75 @@ class Visualizer {
         const ctx = this.ctx;
         const dpr = window.devicePixelRatio || 1;
 
-        ctx.clearRect(0, 0, width, height);
-
         if (!this.currentTheme && window.THEMES) {
             this.currentTheme = window.THEMES[0];
         }
 
+        // Tło motywu
+        ctx.clearRect(0, 0, width, height);
+        if (this.currentTheme) {
+            ctx.fillStyle = this.currentTheme.backgroundColor;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        const effectiveGlowIntensity = this.isBeatActive ? this.config.glowIntensity * 2.5 : this.config.glowIntensity;
+
+        if (this.config.oscilloscopeMode) {
+            this.drawOscilloscope(width, height, dpr, effectiveGlowIntensity);
+        } else if (this.config.mirrorMode) {
+            this.drawMirrorBars(width, height, dpr, effectiveGlowIntensity);
+        } else {
+            this.drawNormalBars(width, height, dpr, effectiveGlowIntensity);
+        }
+    }
+
+    drawNormalBars(width, height, dpr, glow) {
+        const ctx = this.ctx;
         const barSpacing = this.barSpacing * dpr;
         const barWidth = (width - (this.config.bandCount - 1) * barSpacing) / this.config.bandCount;
+
+        this.renderBars(0, width, barWidth, barSpacing, this.displayedBands, this.peaks, dpr, glow);
+    }
+
+    drawMirrorBars(width, height, dpr, glow) {
+        const ctx = this.ctx;
+        const centerX = width / 2;
+        const barSpacing = (this.barSpacing * dpr) / 2;
+        const barWidth = (centerX - (this.config.bandCount - 1) * barSpacing) / this.config.bandCount;
+
+        // Prawa strona (oryginał)
+        ctx.save();
+        ctx.translate(centerX, 0);
+        this.renderBars(0, centerX, barWidth, barSpacing, this.displayedBands, this.peaks, dpr, glow);
+        ctx.restore();
+
+        // Lewa strona (odbicie)
+        ctx.save();
+        ctx.translate(centerX, 0);
+        ctx.scale(-1, 1);
+        this.renderBars(0, centerX, barWidth, barSpacing, this.displayedBands, this.peaks, dpr, glow);
+        ctx.restore();
+    }
+
+    renderBars(startX, availableWidth, barWidth, barSpacing, bands, peaks, dpr, glow) {
+        const ctx = this.ctx;
+        const height = this.canvas.height;
         const cornerRadius = 4 * dpr;
 
-        // Efekty Glow
-        if (this.config.glowIntensity > 0) {
+        if (glow > 0) {
             ctx.shadowBlur = this.config.glowSpread * dpr;
             ctx.shadowColor = this.currentTheme ? this.currentTheme.glowColor : '#00ffff';
-        } else {
-            ctx.shadowBlur = 0;
         }
 
         for (let i = 0; i < this.config.bandCount; i++) {
-            const val = this.displayedBands[i] || 0;
+            const val = bands[i] || 0;
             const barHeight = val * height;
-            const x = i * (barWidth + barSpacing);
+            const x = startX + i * (barWidth + barSpacing);
             const y = height - barHeight;
 
             if (barHeight < 1) continue;
 
-            // Rysowanie słupka
-            const gradient = ctx.createLinearGradient(x, height, x, y);
-            if (this.currentTheme && this.currentTheme.barGradient) {
-                const colors = this.currentTheme.barGradient;
-                colors.forEach((color, idx) => {
-                    gradient.addColorStop(idx / (colors.length - 1), color);
-                });
-            } else {
-                gradient.addColorStop(0, '#ff00ff');
-                gradient.addColorStop(1, '#00ffff');
-            }
-
+            const gradient = this.getBarGradient(x, height, y);
             ctx.fillStyle = gradient;
             ctx.globalAlpha = this.config.barOpacity;
 
@@ -152,23 +207,72 @@ class Visualizer {
             }
             ctx.fill();
 
-            // Szczyty
-            if (this.config.peakIndicators && this.peaks[i] > 0.01) {
-                const peakY = height - (this.peaks[i] * height);
-                ctx.shadowBlur = 0; // Wyłączamy glow dla szczytów
+            if (this.config.peakIndicators && peaks[i] > 0.01) {
+                const peakY = height - (peaks[i] * height);
+                const prevShadow = ctx.shadowBlur;
+                ctx.shadowBlur = 0;
                 ctx.fillStyle = this.currentTheme ? this.currentTheme.peakColor : '#ffffff';
                 ctx.globalAlpha = 1.0;
                 ctx.fillRect(x, peakY - (2 * dpr), barWidth, 2 * dpr);
-
-                // Przywracamy glow dla następnego słupka
-                if (this.config.glowIntensity > 0) {
-                    ctx.shadowBlur = this.config.glowSpread * dpr;
-                    ctx.shadowColor = this.currentTheme ? this.currentTheme.glowColor : '#00ffff';
-                }
+                ctx.shadowBlur = prevShadow;
             }
         }
         ctx.globalAlpha = 1.0;
         ctx.shadowBlur = 0;
+    }
+
+    drawOscilloscope(width, height, dpr, glow) {
+        const ctx = this.ctx;
+        const bands = this.displayedBands;
+        const count = bands.length;
+        const step = width / (count - 1);
+
+        ctx.save();
+        if (glow > 0) {
+            ctx.shadowBlur = this.config.glowSpread * dpr;
+            ctx.shadowColor = this.currentTheme ? this.currentTheme.glowColor : '#00ffff';
+        }
+
+        ctx.beginPath();
+        ctx.lineWidth = 2 * dpr;
+        ctx.strokeStyle = this.currentTheme ? this.currentTheme.barGradient[this.currentTheme.barGradient.length - 1] : '#00ffff';
+
+        for (let i = 0; i < count; i++) {
+            const x = i * step;
+            const y = height - (bands[i] * height * 0.8) - (height * 0.1); // Wyśrodkowanie pionowe fali
+
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                const prevX = (i - 1) * step;
+                const prevY = height - (bands[i-1] * height * 0.8) - (height * 0.1);
+                const cpX = (prevX + x) / 2;
+                ctx.quadraticCurveTo(prevX, prevY, cpX, (prevY + y) / 2);
+            }
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    getBarGradient(x, bottom, top) {
+        const ctx = this.ctx;
+        const gradient = ctx.createLinearGradient(x, bottom, x, top);
+        if (this.currentTheme && this.currentTheme.barGradient) {
+            const colors = this.currentTheme.barGradient;
+            if (colors.length === 3) {
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(0.5, colors[1]);
+                gradient.addColorStop(1, colors[2]);
+            } else {
+                colors.forEach((color, idx) => {
+                    gradient.addColorStop(idx / (colors.length - 1), color);
+                });
+            }
+        } else {
+            gradient.addColorStop(0, '#ff00ff');
+            gradient.addColorStop(1, '#00ffff');
+        }
+        return gradient;
     }
 
     animate() {
