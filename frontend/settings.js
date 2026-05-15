@@ -40,8 +40,11 @@ class SettingsManager {
     }
 
     setupEventListeners() {
-        // Toggle panelu
-        this.trigger.addEventListener('click', () => this.togglePanel());
+        // Toggle panelu przez prawy przycisk myszy
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.togglePanel();
+        });
 
         // Automatyczna synchronizacja kontrolek
         const inputs = document.querySelectorAll('[data-setting]');
