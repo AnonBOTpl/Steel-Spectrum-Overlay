@@ -1,0 +1,14 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+    resizeWindow: (newHeight) => ipcRenderer.send('resize-window', newHeight),
+    moveWindow: (x, y) => ipcRenderer.send('move-window', { x, y }),
+    toggleClickThrough: (ignore) => ipcRenderer.invoke('toggle-click-through', ignore),
+    saveConfig: (config) => ipcRenderer.invoke('save-config', config),
+    loadConfig: () => ipcRenderer.invoke('load-config'),
+    getDisplays: () => ipcRenderer.invoke('get-displays'),
+    moveToDisplay: (displayIndex) => ipcRenderer.send('move-to-display', displayIndex),
+
+    // Obsługa zdarzeń z Main do Renderer (jeśli będą potrzebne)
+    onConfigUpdated: (callback) => ipcRenderer.on('config-updated', (event, config) => callback(config))
+});

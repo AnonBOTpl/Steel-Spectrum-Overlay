@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "window": {
+    "x": null,
+    "y": null,
+    "width": 800,
+    "height": 200,
+    "displayId": 0
+  },
+  "audio": {
+    "bandCount": 16,
+    "sensitivity": 1.5,
+    "decayFactor": 0.92,
+    "peakIndicators": true
+  },
+  "visuals": {
+    "theme": "Neon Cyberpunk",
+    "glowIntensity": 15,
+    "glowSpread": 8,
+    "barOpacity": 0.9,
+    "mirrorMode": false,
+    "oscilloscopeMode": false,
+    "beatDetection": true,
+    "beatThreshold": 0.7
+  },
+  "system": {
+    "clickThrough": false,
+    "alwaysOnTop": true,
+    "startMinimized": false
+  }
+}
