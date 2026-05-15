@@ -28,6 +28,7 @@ class SettingsManager {
 
     populateThemes() {
         const select = document.getElementById('theme-select');
+        select.innerHTML = '';
         if (window.THEMES) {
             window.THEMES.forEach(theme => {
                 const option = document.createElement('option');
@@ -213,11 +214,29 @@ class SettingsManager {
     async importTheme() {
         const theme = await window.electronAPI.importTheme();
         if (theme) {
-            // Dodajemy jako "Custom" lub po prostu nadpisujemy visuals
-            Object.assign(this.config.visuals, theme.visuals || theme);
-            this.applyConfigToUI();
-            this.visualizer.updateConfig(this.config);
-            this.debouncedSave();
+            // Walidacja pól motywu
+            const t = theme.visuals || theme;
+            if (t.name && t.barGradient && t.peakColor && t.glowColor && t.backgroundColor) {
+                // Dodaj do listy THEMES jeśli jeszcze go nie ma (po nazwie)
+                if (!window.THEMES.find(existing => existing.name === t.name)) {
+                    window.THEMES.push({
+                        name: t.name,
+                        barGradient: t.barGradient,
+                        peakColor: t.peakColor,
+                        glowColor: t.glowColor,
+                        backgroundColor: t.backgroundColor
+                    });
+                    this.populateThemes();
+                }
+
+                Object.assign(this.config.visuals, t);
+                this.applyConfigToUI();
+                this.visualizer.updateConfig(this.config);
+                this.debouncedSave();
+                console.log(`Zaimportowano motyw: ${t.name}`);
+            } else {
+                console.error('Nieprawidłowy format pliku motywu.');
+            }
         }
     }
 

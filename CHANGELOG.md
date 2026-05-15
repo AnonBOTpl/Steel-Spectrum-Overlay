@@ -41,6 +41,16 @@ Wszystkie istotne zmiany w projekcie Steel-Spectrum-Overlay (Backend).
 - Możliwość przenoszenia widgetu między monitorami z poziomu ustawień.
 - Przycisk resetowania ustawień do wartości domyślnych.
 
+## [1.3.0] - 2025-05-13
+
+### Dodano
+- Zaawansowany system motywów (5 stylów: Cyberpunk, Solar, Matrix, Arctic, Synthwave).
+- Efekt Beat Detection: dynamiczne pulsowanie poświaty przy uderzeniach basu.
+- Mirror Mode: symetryczna wizualizacja względem osi środkowej ekranu.
+- Oscilloscope Mode: alternatywny widok fali z użyciem krzywych Beziera.
+- Globalny skrót klawiszowy 'O' do szybkiego przełączania trybu oscyloskopu.
+- Rozszerzony import/eksport motywów z walidacją struktury pliku JSON.
+
 ### Naprawiono
 - Poprawiono inicjalizację tablic danych w wizualizatorze (eliminacja błędu brakujących pasm przy starcie).
 - Ulepszono stabilność połączenia WebSocket i dodano szczegółowe logowanie błędów.
