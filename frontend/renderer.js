@@ -1,29 +1,25 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const statusDot = document.getElementById('status-dot');
     const visualizer = new window.Visualizer();
+    const settings = new window.SettingsManager(visualizer);
 
-    let config = null;
     let socket = null;
     let reconnectTimeout = null;
 
-    // Wczytanie konfiguracji przy starcie
-    async function init() {
-        config = await window.electronAPI.loadConfig();
-        if (config) {
-            visualizer.updateConfig(config);
-        }
-        connectWebSocket();
-    }
-
     function connectWebSocket() {
         if (socket) {
+            socket.onopen = null;
+            socket.onmessage = null;
+            socket.onclose = null;
+            socket.onerror = null;
             socket.close();
         }
 
-        socket = new WebSocket('ws://localhost:8765');
+        console.log('Próba połączenia z ws://127.0.0.1:8765...');
+        socket = new WebSocket('ws://127.0.0.1:8765');
 
         socket.onopen = () => {
-            console.log('Połączono z backendem audio.');
+            console.log('POŁĄCZONO z backendem audio.');
             statusDot.className = 'connected';
             if (reconnectTimeout) {
                 clearTimeout(reconnectTimeout);
@@ -34,23 +30,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         socket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.bands) {
+                if (data && data.bands) {
                     visualizer.updateData(data.bands);
+                    // Udostępniamy surowe dane dla SettingsManager (sekcja kalibracji)
+                    window.lastRawBands = data.bands;
                 }
             } catch (err) {
                 console.error('Błąd parsowania danych WebSocket:', err);
             }
         };
 
-        socket.onclose = () => {
-            console.log('Rozłączono z backendem. Próba ponownego połączenia...');
+        socket.onclose = (event) => {
+            console.log(`POŁĄCZENIE ZAMKNIĘTE (Kod: ${event.code}). Próba ponownego połączenia za 2s...`);
             statusDot.className = 'disconnected';
             scheduleReconnect();
         };
 
         socket.onerror = (err) => {
-            console.error('Błąd WebSocket:', err);
-            socket.close();
+            console.error('BŁĄD WebSocket:', err);
         };
     }
 
@@ -63,27 +60,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Obsługa interakcji
-    const controlsOverlay = document.getElementById('controls-overlay');
+    // Obsługa zdarzeń IPC z procesu głównego
+    window.electronAPI.onConfigUpdated((newConfig) => {
+        console.log('Otrzymano aktualizację konfiguracji z procesu głównego');
+        visualizer.updateConfig(newConfig);
+        settings.config = newConfig;
+        settings.applyConfigToUI();
+    });
 
-    // Double click -> Toggle Click-Through
-    document.addEventListener('dblclick', async () => {
-        if (config) {
-            const newState = !config.system.clickThrough;
-            const success = await window.electronAPI.toggleClickThrough(newState);
-            if (success !== undefined) {
-                config.system.clickThrough = success;
-                window.electronAPI.saveConfig(config);
+    // Double click -> Toggle Click-Through (na obszarze aplikacji, poza panelem)
+    document.addEventListener('dblclick', async (e) => {
+        if (e.target.closest('#controls-overlay') || e.target.closest('#settings-panel')) {
+            return;
+        }
+
+        if (settings.config) {
+            const newState = !settings.config.system.clickThrough;
+            try {
+                const success = await window.electronAPI.toggleClickThrough(newState);
+                settings.config.system.clickThrough = success;
+                settings.applyConfigToUI();
+                window.electronAPI.saveConfig(settings.config);
                 console.log(`Tryb click-through: ${success ? 'WŁ' : 'WYŁ'}`);
+            } catch (err) {
+                console.error('Błąd zmiany trybu click-through:', err);
             }
         }
     });
 
-    // Ikona ustawień (placeholder dla Task 3)
-    const settingsTrigger = document.getElementById('settings-trigger');
-    settingsTrigger.addEventListener('click', () => {
-        console.log('Otwieranie panelu ustawień (Task 3)');
-    });
-
-    init();
+    // Start połączenia
+    connectWebSocket();
 });

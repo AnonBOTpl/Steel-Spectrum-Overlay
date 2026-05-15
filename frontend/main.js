@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -124,4 +124,32 @@ ipcMain.on('move-to-display', (event, displayIndex) => {
 
         mainWindow.setPosition(newX, newY);
     }
+});
+
+ipcMain.handle('export-theme', async (event, themeData) => {
+    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Eksportuj motyw',
+        defaultPath: 'theme.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+
+    if (filePath) {
+        fs.writeFileSync(filePath, JSON.stringify(themeData, null, 2));
+        return true;
+    }
+    return false;
+});
+
+ipcMain.handle('import-theme', async () => {
+    const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'Importuj motyw',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile']
+    });
+
+    if (filePaths && filePaths.length > 0) {
+        const data = fs.readFileSync(filePaths[0], 'utf8');
+        return JSON.parse(data);
+    }
+    return null;
 });

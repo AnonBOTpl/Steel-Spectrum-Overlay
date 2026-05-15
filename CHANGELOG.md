@@ -29,5 +29,20 @@ Wszystkie istotne zmiany w projekcie Steel-Spectrum-Overlay (Backend).
 - Dynamiczne wczytywanie i zapisywanie konfiguracji w `config.json`.
 - Obsługa wielu monitorów i automatyczne centrowanie okna.
 
+## [1.2.0] - 2025-05-13
+
+### Dodano
+- Wysuwalny panel ustawień (sekcje: Audio, Wygląd, System, Kalibracja).
+- Dynamiczne rozszerzanie okna Electron przy otwieraniu panelu.
+- System motywów (5 predefiniowanych motywów w `themes.js`).
+- Synchronizacja suwaków z inputami numerycznymi i live preview zmian.
+- Sekcja kalibracji wyświetlająca wartości surowe (Raw Values) w czasie rzeczywistym.
+- Obsługa eksportu i importu motywów do plików JSON.
+- Możliwość przenoszenia widgetu między monitorami z poziomu ustawień.
+- Przycisk resetowania ustawień do wartości domyślnych.
+
 ### Naprawiono
+- Poprawiono inicjalizację tablic danych w wizualizatorze (eliminacja błędu brakujących pasm przy starcie).
+- Ulepszono stabilność połączenia WebSocket i dodano szczegółowe logowanie błędów.
+- Poprawiono renderowanie na ekranach o wysokiej gęstości pikseli (DPI).
 - Obsługa błędów przy braku interfejsu audio lub niewłaściwym systemie operacyjnym.
