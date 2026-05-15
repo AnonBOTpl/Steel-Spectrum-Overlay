@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     loadConfig: () => ipcRenderer.invoke('load-config'),
     getDisplays: () => ipcRenderer.invoke('get-displays'),
     moveToDisplay: (displayIndex) => ipcRenderer.send('move-to-display', displayIndex),
+    exportTheme: (themeData) => ipcRenderer.invoke('export-theme', themeData),
+    importTheme: () => ipcRenderer.invoke('import-theme'),
 
     // Obsługa zdarzeń z Main do Renderer (jeśli będą potrzebne)
     onConfigUpdated: (callback) => ipcRenderer.on('config-updated', (event, config) => callback(config))
