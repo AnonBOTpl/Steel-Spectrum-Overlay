@@ -99,7 +99,7 @@ steel-spectrum-overlay/
 ### 1. Sklonuj repozytorium
 
 ```bash
-git clone https://github.com/twoja-nazwa/steel-spectrum-overlay.git
+git clone https://github.com/AnonBOTpl/Steel-Spectrum-Overlay.git
 cd steel-spectrum-overlay
 ```
 
