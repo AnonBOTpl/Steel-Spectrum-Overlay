@@ -1,0 +1,21 @@
+{
+  "name": "steel-spectrum-overlay",
+  "version": "1.0.0",
+  "description": "Zaawansowany, przezroczysty wizualizator audio na pulpit Windows",
+  "main": "frontend/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "audio",
+    "visualizer",
+    "electron",
+    "overlay"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^31.0.0"
+  }
+}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steel-Spectrum-Overlay</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Canvas do wizualizacji -->
+        <canvas id="visualizer-canvas"></canvas>
+
+        <!-- Nakładka interaktywna (no-drag region) -->
+        <div id="controls-overlay">
+            <div id="status-dot" class="disconnected" title="Status połączenia"></div>
+            <!-- Ikona ustawień (będzie użyta w Task 3) -->
+            <div id="settings-trigger" title="Ustawienia">⚙️</div>
+        </div>
+    </div>
+
+    <script src="visualizer.js"></script>
+    <script src="renderer.js"></script>
+</body>
+</html>
