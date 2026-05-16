@@ -1,11 +1,21 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const statusDot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
     const visualizer = new window.Visualizer();
-    const settings = new window.SettingsManager(visualizer);
 
     let socket = null;
     let reconnectTimeout = null;
+
+    async function init() {
+        try {
+            const config = await window.electronAPI.loadConfig();
+            if (config) {
+                visualizer.updateConfig(config);
+                updateClickThroughIndicator(config.system.clickThrough);
+            }
+        } catch (err) {
+            console.error('Błąd inicjalizacji:', err);
+        }
+        connectWebSocket();
+    }
 
     function connectWebSocket() {
         if (socket) {
@@ -16,13 +26,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             socket.close();
         }
 
-        console.log('Próba połączenia z ws://127.0.0.1:8765...');
         socket = new WebSocket('ws://127.0.0.1:8765');
 
         socket.onopen = () => {
             console.log('POŁĄCZONO z backendem audio.');
-            statusDot.className = 'connected';
-            if (statusText) statusText.textContent = 'Połączono';
             if (reconnectTimeout) {
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
@@ -34,18 +41,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const data = JSON.parse(event.data);
                 if (data && data.bands) {
                     visualizer.updateData(data.bands);
-                    // Udostępniamy surowe dane dla SettingsManager (sekcja kalibracji)
-                    window.lastRawBands = data.bands;
                 }
             } catch (err) {
                 console.error('Błąd parsowania danych WebSocket:', err);
             }
         };
 
-        socket.onclose = (event) => {
-            console.log(`POŁĄCZENIE ZAMKNIĘTE (Kod: ${event.code}). Próba ponownego połączenia za 2s...`);
-            statusDot.className = 'disconnected';
-            if (statusText) statusText.textContent = 'Rozłączono';
+        socket.onclose = () => {
             scheduleReconnect();
         };
 
@@ -63,59 +65,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function updateClickThroughIndicator(active) {
+        const indicator = document.getElementById('click-through-indicator');
+        if (indicator) {
+            if (active) indicator.classList.remove('hidden');
+            else indicator.classList.add('hidden');
+        }
+    }
+
     // Obsługa zdarzeń IPC z procesu głównego
     window.electronAPI.onConfigUpdated((newConfig) => {
-        console.log('Otrzymano aktualizację konfiguracji z procesu głównego');
         visualizer.updateConfig(newConfig);
-        settings.config = newConfig;
-        settings.applyConfigToUI();
+        updateClickThroughIndicator(newConfig.system.clickThrough);
     });
 
-    // Obsługa menu kontekstowego (Prawy przycisk myszy)
-    // Łapiemy na document zamiast window, żeby przechwycić przed potencjalnymi innymi elementami
+    window.electronAPI.onConfigUpdatedFromMain((data) => {
+        // To zdarzenie przychodzi np. z menu tray
+        if (data.system && data.system.clickThrough !== undefined) {
+            updateClickThroughIndicator(data.system.clickThrough);
+        }
+    });
+
+    // Prawy przycisk myszy -> Otwórz okno ustawień
     document.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        settings.togglePanel();
+        window.electronAPI.openSettingsWindow();
         return false;
-    }, true); // true = capture phase
-
-    window.electronAPI.onOpenSettingsPanel(() => {
-        if (!settings.isOpen) {
-            settings.togglePanel();
-        }
-    });
+    }, true);
 
     // Obsługa hotkeya oscyloskopu
     window.electronAPI.onToggleOscilloscopeHotkey(() => {
-        if (settings.config && settings.config.visuals) {
-            const newState = !settings.config.visuals.oscilloscopeMode;
-            settings.config.visuals.oscilloscopeMode = newState;
-            visualizer.updateConfig(settings.config);
-            settings.applyConfigToUI();
-            window.electronAPI.saveConfig(settings.config);
-        }
-    });
-
-    // Synchronizacja z menu Tray (Main -> Renderer)
-    window.electronAPI.onConfigUpdatedFromMain((data) => {
-        if (settings.config) {
-            if (data.system) {
-                Object.assign(settings.config.system, data.system);
-
-                // Aktualizacja UI i wizualnych indykatorów
-                if (data.system.clickThrough !== undefined) {
-                    const indicator = document.getElementById('click-through-indicator');
-                    if (indicator) {
-                        if (data.system.clickThrough) indicator.classList.remove('hidden');
-                        else indicator.classList.add('hidden');
-                    }
-                }
-            }
-            settings.applyConfigToUI();
-            visualizer.updateConfig(settings.config);
-            window.electronAPI.saveConfig(settings.config);
-        }
+        window.electronAPI.loadConfig().then(config => {
+            config.visuals.oscilloscopeMode = !config.visuals.oscilloscopeMode;
+            visualizer.updateConfig(config);
+            window.electronAPI.saveConfig(config);
+        });
     });
 
     // Tooltip powitalny
@@ -128,13 +113,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     checkFirstRun();
 
-    // Ręczne przeciąganie okna (Manual Drag) - Poprawiona logika płynności
+    // Ręczne przeciąganie okna (Manual Drag)
     let isDragging = false;
     let lastMouseX, lastMouseY;
 
     document.addEventListener('mousedown', (e) => {
-        // Tylko lewy przycisk i nie na panelu ustawień
-        if (e.button === 0 && !e.target.closest('#settings-panel')) {
+        if (e.button === 0) {
             isDragging = true;
             lastMouseX = e.screenX;
             lastMouseY = e.screenY;
@@ -145,7 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (isDragging) {
             const dx = e.screenX - lastMouseX;
             const dy = e.screenY - lastMouseY;
-
             if (dx !== 0 || dy !== 0) {
                 window.electronAPI.moveWindowRelative(dx, dy);
                 lastMouseX = e.screenX;
@@ -158,40 +141,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         isDragging = false;
     }, true);
 
-    // Double click -> Toggle Click-Through (na obszarze aplikacji, poza panelem)
-    document.addEventListener('dblclick', async (e) => {
-        if (e.target.closest('#controls-overlay') || e.target.closest('#settings-panel')) {
-            return;
-        }
-
-        if (settings.config) {
-            const newState = !settings.config.system.clickThrough;
-            try {
-                const success = await window.electronAPI.toggleClickThrough(newState);
-                settings.config.system.clickThrough = success;
-                settings.applyConfigToUI();
-                window.electronAPI.saveConfig(settings.config);
-                console.log(`Tryb click-through: ${success ? 'WŁ' : 'WYŁ'}`);
-            } catch (err) {
-                console.error('Błąd zmiany trybu click-through:', err);
-            }
+    // Double click -> Toggle Click-Through
+    document.addEventListener('dblclick', async () => {
+        const config = await window.electronAPI.loadConfig();
+        if (config) {
+            const newState = !config.system.clickThrough;
+            const success = await window.electronAPI.toggleClickThrough(newState);
+            config.system.clickThrough = success;
+            updateClickThroughIndicator(success);
+            window.electronAPI.saveConfig(config);
         }
     });
 
-    // Skróty klawiszowe (Hotkey O)
-    document.addEventListener('keydown', (e) => {
-        if (e.key.toLowerCase() === 'o') {
-            if (settings.config && settings.config.visuals) {
-                const newState = !settings.config.visuals.oscilloscopeMode;
-                settings.config.visuals.oscilloscopeMode = newState;
-                visualizer.updateConfig(settings.config);
-                settings.applyConfigToUI();
-                window.electronAPI.saveConfig(settings.config);
-                console.log(`Oscilloscope Mode: ${newState ? 'WŁ' : 'WYŁ'}`);
-            }
-        }
-    });
-
-    // Start połączenia
-    connectWebSocket();
+    init();
 });

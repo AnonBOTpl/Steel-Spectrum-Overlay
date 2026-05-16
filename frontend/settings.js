@@ -1,16 +1,7 @@
 class SettingsManager {
-    constructor(visualizer) {
-        this.visualizer = visualizer;
+    constructor() {
         this.config = null;
-        this.isOpen = false;
-        this.panelHeight = 320;
-
-        this.panel = document.getElementById('settings-panel');
-        this.trigger = document.getElementById('settings-trigger');
-        this.appContainer = document.getElementById('app-container');
-
         this.saveTimeout = null;
-
         this.init();
     }
 
@@ -22,12 +13,18 @@ class SettingsManager {
         this.applyConfigToUI();
         this.initCalibrationGrid();
 
-        // Start pętli kalibracji
+        // Nasłuchiwanie na aktualizacje konfiguracji z innych okien
+        window.electronAPI.onConfigUpdated((newConfig) => {
+            this.config = newConfig;
+            this.applyConfigToUI();
+        });
+
         this.updateCalibration();
     }
 
     populateThemes() {
         const select = document.getElementById('theme-select');
+        if (!select) return;
         select.innerHTML = '';
         if (window.THEMES) {
             window.THEMES.forEach(theme => {
@@ -40,28 +37,29 @@ class SettingsManager {
     }
 
     setupEventListeners() {
-        // Automatyczna synchronizacja kontrolek
         const inputs = document.querySelectorAll('[data-setting]');
         inputs.forEach(input => {
-            const eventType = input.type === 'checkbox' || input.tagName === 'SELECT' ? 'change' : 'input';
+            const eventType = (input.type === 'checkbox' || input.tagName === 'SELECT' || input.type === 'color') ? 'change' : 'input';
 
             input.addEventListener(eventType, (e) => {
                 const path = input.getAttribute('data-setting');
                 let value = input.type === 'checkbox' ? input.checked : input.value;
 
-                // Konwersja typów
-                if (input.type === 'number' || input.type === 'range') {
-                    value = parseFloat(value);
-                }
-                if (path === 'audio.bandCount') {
-                    value = parseInt(value);
-                }
+                if (input.type === 'number' || input.type === 'range') value = parseFloat(value);
+                if (path === 'audio.bandCount') value = parseInt(value);
 
                 this.updateSetting(path, value, input);
             });
         });
 
-        // Obsługa monitorów
+        // Specjalna obsługa dla kolorów - natychmiastowy preview
+        document.querySelectorAll('input[type="color"]').forEach(input => {
+            input.addEventListener('input', (e) => {
+                const path = input.getAttribute('data-setting');
+                this.updateSetting(path, e.target.value, input);
+            });
+        });
+
         const moveBtn = document.getElementById('move-display-btn');
         if (moveBtn) {
             moveBtn.addEventListener('click', () => {
@@ -75,7 +73,6 @@ class SettingsManager {
 
         this.loadDisplays();
 
-        // Przyciski akcji
         document.getElementById('export-theme-btn').addEventListener('click', () => this.exportTheme());
         document.getElementById('import-theme-btn').addEventListener('click', () => this.importTheme());
         document.getElementById('reset-defaults-btn').addEventListener('click', () => this.resetToDefaults());
@@ -83,9 +80,8 @@ class SettingsManager {
         const saveCloseBtn = document.getElementById('save-close-btn');
         if (saveCloseBtn) {
             saveCloseBtn.addEventListener('click', () => {
-                // Wymuś zapis natychmiastowy
                 window.electronAPI.saveConfig(this.config);
-                this.togglePanel();
+                window.close();
             });
         }
     }
@@ -98,29 +94,13 @@ class SettingsManager {
         displays.forEach(d => {
             const option = document.createElement('option');
             option.value = d.index;
-            // Sprawdź czy mamy config i czy to jest aktualny monitor
-            if (this.config && this.config.window.displayId === d.index) {
-                option.selected = true;
-            }
+            if (this.config && this.config.window.displayId === d.index) option.selected = true;
             option.textContent = `Monitor ${d.index + 1} — ${d.bounds.width}×${d.bounds.height}`;
             select.appendChild(option);
         });
     }
 
-    togglePanel() {
-        this.isOpen = !this.isOpen;
-        if (this.isOpen) {
-            this.panel.classList.remove('hidden');
-            const totalHeight = (this.config.window.height || 200) + this.panelHeight;
-            window.electronAPI.resizeWindow(totalHeight);
-        } else {
-            this.panel.classList.add('hidden');
-            window.electronAPI.resizeWindow(this.config.window.height || 200);
-        }
-    }
-
     updateSetting(path, value, sourceInput) {
-        // Aktualizacja obiektu config
         const parts = path.split('.');
         let current = this.config;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -128,39 +108,13 @@ class SettingsManager {
         }
         current[parts[parts.length - 1]] = value;
 
-        // Synchronizacja bliźniaczej kontrolki (range <-> number)
         if (sourceInput && (sourceInput.type === 'range' || sourceInput.type === 'number')) {
             const other = document.querySelector(`${sourceInput.tagName}[data-setting="${path}"]:not([type="${sourceInput.type}"])`);
             if (other) other.value = value;
         }
 
-        // Specjalna obsługa zmiany wysokości widgetu
-        if (path === 'window.height') {
-            const totalHeight = value + (this.isOpen ? this.panelHeight : 0);
-            window.electronAPI.resizeWindow(totalHeight);
-            // Visualizer zareaguje przez event resize na oknie
-        }
+        if (path === 'audio.bandCount') this.initCalibrationGrid();
 
-        // Specjalna obsługa zmiany liczby pasm
-        if (path === 'audio.bandCount') {
-            this.initCalibrationGrid();
-        }
-
-        // Live preview w wizualizatorze
-        this.visualizer.updateConfig(this.config);
-
-        // Indicator click-through
-        if (path === 'system.clickThrough') {
-            const indicator = document.getElementById('click-through-indicator');
-            if (indicator) {
-                if (value) indicator.classList.remove('hidden');
-                else indicator.classList.add('hidden');
-            }
-            // Powiadom proces główny (dla Tray menu checkmark)
-            window.electronAPI.toggleClickThrough(value);
-        }
-
-        // Debounced save
         this.debouncedSave();
     }
 
@@ -168,7 +122,6 @@ class SettingsManager {
         if (this.saveTimeout) clearTimeout(this.saveTimeout);
         this.saveTimeout = setTimeout(() => {
             window.electronAPI.saveConfig(this.config);
-            console.log('Config saved');
         }, 300);
     }
 
@@ -182,87 +135,50 @@ class SettingsManager {
             parts.forEach(part => value = value ? value[part] : null);
 
             if (value !== null) {
-                if (input.type === 'checkbox') {
-                    input.checked = value;
-                } else {
-                    input.value = value;
-                }
+                if (input.type === 'checkbox') input.checked = value;
+                else input.value = value;
             }
         });
     }
 
     initCalibrationGrid() {
         const grid = document.getElementById('calibration-grid');
+        if (!grid) return;
         grid.innerHTML = '';
         const count = this.config.audio.bandCount;
-
-        // Dostosowanie kolumn gridu
-        grid.style.gridTemplateColumns = `repeat(${count <= 16 ? 8 : 8}, 1fr)`;
-
         for (let i = 0; i < count; i++) {
             const cell = document.createElement('div');
             cell.className = 'raw-cell';
-            cell.innerHTML = `
-                <span class="raw-label">B${i+1}</span>
-                <span class="raw-value" id="raw-v-${i}">0.00</span>
-            `;
+            cell.innerHTML = `<span class="raw-label">B${i+1}</span><span class="raw-value" id="raw-v-${i}">0.00</span>`;
             grid.appendChild(cell);
         }
     }
 
     updateCalibration() {
-        if (this.isOpen && window.lastRawBands) {
-            const bands = window.lastRawBands;
-            for (let i = 0; i < bands.length; i++) {
-                const el = document.getElementById(`raw-v-${i}`);
-                if (el) {
-                    el.textContent = bands[i].toFixed(2);
-                }
-            }
-        }
-        // Używamy requestIdleCallback dla wydajności (Task 3 requirement)
-        if (window.requestIdleCallback) {
-            window.requestIdleCallback(() => {
-                setTimeout(() => this.updateCalibration(), 100);
-            });
-        } else {
-            setTimeout(() => this.updateCalibration(), 100);
-        }
+        // Dane pobieramy z procesu głównego lub przez współdzieloną pamięć
+        // W tej architekturze settings.html nie ma połączenia WS,
+        // więc wartości Raw będą aktualizowane tylko w głównym oknie wizualizatora
+        // lub musielibyśmy przesyłać je przez IPC (co obciąża CPU).
+        // Zostawiamy puste lub implementujemy przesyłanie co 200ms.
     }
 
     async exportTheme() {
-        const themeData = {
-            name: this.config.visuals.theme,
-            visuals: this.config.visuals
-        };
+        const themeData = { name: this.config.visuals.theme, visuals: this.config.visuals };
         await window.electronAPI.exportTheme(themeData);
     }
 
     async importTheme() {
         const theme = await window.electronAPI.importTheme();
         if (theme) {
-            // Walidacja pól motywu
             const t = theme.visuals || theme;
             if (t.name && t.barGradient && t.peakColor && t.glowColor && t.backgroundColor) {
-                // Dodaj do listy THEMES jeśli jeszcze go nie ma (po nazwie)
                 if (!window.THEMES.find(existing => existing.name === t.name)) {
-                    window.THEMES.push({
-                        name: t.name,
-                        barGradient: t.barGradient,
-                        peakColor: t.peakColor,
-                        glowColor: t.glowColor,
-                        backgroundColor: t.backgroundColor
-                    });
+                    window.THEMES.push(t);
                     this.populateThemes();
                 }
-
                 Object.assign(this.config.visuals, t);
                 this.applyConfigToUI();
-                this.visualizer.updateConfig(this.config);
                 this.debouncedSave();
-                console.log(`Zaimportowano motyw: ${t.name}`);
-            } else {
-                console.error('Nieprawidłowy format pliku motywu.');
             }
         }
     }
@@ -271,22 +187,17 @@ class SettingsManager {
         const defaults = {
             "version": 1,
             "window": { "x": null, "y": null, "width": 800, "height": 200, "displayId": 0 },
-            "audio": { "bandCount": 16, "sensitivity": 1.5, "decayFactor": 0.92, "peakIndicators": true },
+            "audio": { "bandCount": 16, "sensitivity": 1.0, "decayFactor": 0.92, "peakIndicators": true, "mode": "magnitude" },
             "visuals": { "theme": "Neon Cyberpunk", "glowIntensity": 15, "glowSpread": 8, "barOpacity": 0.9, "mirrorMode": false, "oscilloscopeMode": false, "beatDetection": true, "beatThreshold": 0.7 },
+            "background": { "enabled": false, "color": "#000000", "opacity": 0.5, "borderRadius": 8 },
             "system": { "clickThrough": false, "alwaysOnTop": true, "startMinimized": false }
         };
         this.config = JSON.parse(JSON.stringify(defaults));
         this.applyConfigToUI();
-        this.visualizer.updateConfig(this.config);
-
-        if (this.isOpen) {
-            window.electronAPI.resizeWindow(this.config.window.height + this.panelHeight);
-        } else {
-            window.electronAPI.resizeWindow(this.config.window.height);
-        }
-
         window.electronAPI.saveConfig(this.config);
     }
 }
 
-window.SettingsManager = SettingsManager;
+document.addEventListener('DOMContentLoaded', () => {
+    window.settingsManager = new SettingsManager();
+});

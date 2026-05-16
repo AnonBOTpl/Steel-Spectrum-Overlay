@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steel Spectrum — Ustawienia</title>
+    <link rel="stylesheet" href="settings-styles.css">
+</head>
+<body>
+    <div class="settings-container">
+        <header class="settings-header">
+            <div class="header-main">
+                <h2>Ustawienia</h2>
+                <button id="save-close-btn" class="primary">Zapisz i zamknij</button>
+            </div>
+            <div class="status-bar">
+                <div id="status-dot" class="disconnected"></div>
+                <span id="status-text">Łączenie z backendem...</span>
+            </div>
+        </header>
+
+        <div class="settings-scroll-area">
+            <!-- Sekcja Audio -->
+            <section>
+                <h3>Audio</h3>
+                <div class="setting-group">
+                    <label>Master Sensitivity</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="audio.sensitivity" min="0.1" max="5.0" step="0.01">
+                        <input type="number" data-setting="audio.sensitivity" min="0.1" max="5.0" step="0.01">
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Decay Factor</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="audio.decayFactor" min="0.80" max="0.98" step="0.001">
+                        <input type="number" data-setting="audio.decayFactor" min="0.80" max="0.98" step="0.001">
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Liczba pasm</label>
+                    <select data-setting="audio.bandCount">
+                        <option value="8">8</option>
+                        <option value="12">12</option>
+                        <option value="16">16</option>
+                        <option value="32">32</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>Tryb przetwarzania audio</label>
+                    <select data-setting="audio.mode" id="audio-mode-select">
+                        <option value="magnitude">Magnitude (liniowy)</option>
+                        <option value="db">dB (logarytmiczny)</option>
+                    </select>
+                    <p class="hint">Zmiana wymaga restartu backendu</p>
+                </div>
+                <div class="setting-group inline">
+                    <label>Peak Indicators</label>
+                    <input type="checkbox" data-setting="audio.peakIndicators">
+                </div>
+            </section>
+
+            <!-- Sekcja Wygląd -->
+            <section>
+                <h3>Wygląd</h3>
+                <div class="setting-group">
+                    <label>Motyw</label>
+                    <select data-setting="visuals.theme" id="theme-select"></select>
+                </div>
+                <div class="setting-group">
+                    <label>Glow Intensity</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="visuals.glowIntensity" min="0" max="50" step="1">
+                        <input type="number" data-setting="visuals.glowIntensity" min="0" max="50" step="1">
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Glow Spread</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="visuals.glowSpread" min="0" max="30" step="1">
+                        <input type="number" data-setting="visuals.glowSpread" min="0" max="30" step="1">
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Bar Opacity</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="visuals.barOpacity" min="0.3" max="1.0" step="0.01">
+                        <input type="number" data-setting="visuals.barOpacity" min="0.3" max="1.0" step="0.01">
+                    </div>
+                </div>
+                <div class="setting-group inline">
+                    <label>Mirror Mode</label>
+                    <input type="checkbox" data-setting="visuals.mirrorMode">
+                </div>
+                <div class="setting-group inline">
+                    <label>Oscilloscope Mode</label>
+                    <input type="checkbox" data-setting="visuals.oscilloscopeMode">
+                </div>
+                <div class="setting-group inline">
+                    <label>Beat Detection</label>
+                    <input type="checkbox" data-setting="visuals.beatDetection">
+                </div>
+                <div class="setting-group">
+                    <label>Beat Threshold</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="visuals.beatThreshold" min="0.1" max="1.0" step="0.01">
+                        <input type="number" data-setting="visuals.beatThreshold" min="0.1" max="1.0" step="0.01">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sekcja Tło Widgetu -->
+            <section>
+                <h3>Tło widgetu</h3>
+                <div class="setting-group inline">
+                    <label>Włącz tło</label>
+                    <input type="checkbox" data-setting="background.enabled">
+                </div>
+                <div class="setting-group">
+                    <label>Kolor tła</label>
+                    <input type="color" data-setting="background.color">
+                </div>
+                <div class="setting-group">
+                    <label>Przezroczystość tła</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="background.opacity" min="0" max="1" step="0.01">
+                        <input type="number" data-setting="background.opacity" min="0" max="1" step="0.01">
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Zaokrąglenie rogów (px)</label>
+                    <div class="input-pair">
+                        <input type="range" data-setting="background.borderRadius" min="0" max="30" step="1">
+                        <input type="number" data-setting="background.borderRadius" min="0" max="30" step="1">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sekcja System -->
+            <section>
+                <h3>System</h3>
+                <div class="setting-group">
+                    <label>Monitor</label>
+                    <select id="display-select"></select>
+                </div>
+                <div class="button-group">
+                    <button id="move-display-btn">Przenieś na wybrany monitor</button>
+                </div>
+                <div class="setting-group inline">
+                    <label>Click-through mode</label>
+                    <input type="checkbox" data-setting="system.clickThrough">
+                </div>
+                <div class="button-grid">
+                    <button id="export-theme-btn">Eksportuj motyw</button>
+                    <button id="import-theme-btn">Importuj motyw</button>
+                    <button id="reset-defaults-btn" class="danger">Reset do domyślnych</button>
+                </div>
+            </section>
+
+            <!-- Sekcja Kalibracja -->
+            <section>
+                <h3>Kalibracja (Raw Values)</h3>
+                <div id="calibration-grid" class="raw-grid"></div>
+            </section>
+        </div>
+    </div>
+
+    <script src="themes.js"></script>
+    <script src="settings.js"></script>
+</body>
+</html>

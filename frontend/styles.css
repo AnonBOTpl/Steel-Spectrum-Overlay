@@ -14,14 +14,12 @@ body, html {
     display: flex;
     flex-direction: column;
     background-color: transparent;
-    transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #visualizer-canvas {
     width: 100%;
     height: 100%;
     display: block;
-    /* Usuwamy drag stąd, aby zdarzenia myszy docierały do elementu */
 }
 
 #controls-overlay {
@@ -30,49 +28,8 @@ body, html {
     left: 0;
     width: 100%;
     height: 100%;
-    /* Wyłączamy natywne przeciąganie, aby umożliwić contextmenu */
     -webkit-app-region: no-drag;
-    pointer-events: none; /* Pozwalamy klikać w głąb (do canvas/document) */
-}
-
-.panel-header {
-    grid-column: span 2;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 10px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-left {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    opacity: 0.8;
-}
-
-#status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-
-#status-dot.connected {
-    background-color: #00ff00;
-    box-shadow: 0 0 5px #00ff00;
-}
-
-#status-dot.disconnected {
-    background-color: #ff0000;
-    box-shadow: 0 0 5px #ff0000;
+    pointer-events: none;
 }
 
 #click-through-indicator {
@@ -108,187 +65,4 @@ body, html {
 
 #click-through-indicator.hidden, #welcome-tooltip.hidden {
     display: none;
-}
-
-/* Panel Ustawień */
-#settings-panel {
-    width: 100%;
-    height: 320px;
-    background-color: rgba(10, 10, 15, 0.95);
-    backdrop-filter: blur(10px);
-    color: #e0e0e0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    overflow-y: auto;
-    -webkit-app-region: no-drag;
-    transition: all 0.3s ease;
-}
-
-#settings-panel.hidden {
-    display: none;
-}
-
-.settings-content {
-    padding: 15px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-}
-
-section {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    padding-bottom: 15px;
-}
-
-section:last-child {
-    border-bottom: none;
-    grid-column: span 2;
-}
-
-h3 {
-    margin-top: 0;
-    margin-bottom: 12px;
-    font-size: 14px;
-    color: #00ffff;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.setting-group {
-    margin-bottom: 10px;
-}
-
-.setting-group.inline {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-label {
-    display: block;
-    font-size: 12px;
-    margin-bottom: 4px;
-    opacity: 0.8;
-}
-
-.input-pair {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-input[type="range"] {
-    flex-grow: 1;
-    accent-color: #00ffff;
-    background: #222;
-    height: 4px;
-    border-radius: 2px;
-    cursor: pointer;
-}
-
-input[type="number"], select {
-    background: #1a1a20;
-    border: 1px solid #333;
-    color: #fff;
-    padding: 3px 6px;
-    font-size: 12px;
-    border-radius: 4px;
-}
-
-input[type="number"] {
-    width: 50px;
-}
-
-select {
-    width: 100%;
-}
-
-.button-group, .button-grid {
-    margin-top: 10px;
-}
-
-.button-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-button {
-    background: #2a2a35;
-    border: 1px solid #444;
-    color: #fff;
-    padding: 6px 10px;
-    font-size: 11px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-button:hover {
-    background: #3a3a45;
-    border-color: #00ffff;
-}
-
-button.primary {
-    background: #005555;
-    border-color: #00ffff;
-    font-weight: bold;
-    padding: 8px 15px;
-}
-
-button.primary:hover {
-    background: #007777;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-}
-
-button.danger {
-    color: #ff5555;
-}
-
-button.danger:hover {
-    background: #442222;
-    border-color: #ff5555;
-}
-
-/* Kalibracja Raw Grid */
-.raw-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 5px;
-    font-family: 'Courier New', Courier, monospace;
-}
-
-.raw-cell {
-    background: rgba(255, 255, 255, 0.03);
-    padding: 4px;
-    border-radius: 3px;
-    text-align: center;
-}
-
-.raw-label {
-    font-size: 9px;
-    opacity: 0.5;
-    display: block;
-}
-
-.raw-value {
-    font-size: 11px;
-    color: #00ffff;
-}
-
-/* Scrollbar */
-#settings-panel::-webkit-scrollbar {
-    width: 6px;
-}
-
-#settings-panel::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-#settings-panel::-webkit-scrollbar-thumb {
-    background: #333;
-    border-radius: 3px;
-}
-
-#settings-panel::-webkit-scrollbar-thumb:hover {
-    background: #444;
 }

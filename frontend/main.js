@@ -5,6 +5,7 @@ const fs = require('fs');
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
 let mainWindow;
+let settingsWindow;
 let tray;
 
 function loadConfig() {
@@ -22,42 +23,40 @@ function loadConfig() {
 function saveConfig(config) {
     try {
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        // Rozsyłamy aktualizację do wszystkich okien
+        if (mainWindow) mainWindow.webContents.send('config-updated', config);
+        if (settingsWindow) settingsWindow.webContents.send('config-updated', config);
     } catch (err) {
         console.error('Błąd podczas zapisywania config.json:', err);
     }
 }
 
 function createTray() {
-    let iconPath = path.join(__dirname, 'assets', 'tray-icon.png');
-    let trayIcon;
-
-    if (fs.existsSync(iconPath)) {
-        trayIcon = nativeImage.createFromPath(iconPath);
-    } else {
-        // Generowanie placeholdera 16x16 (czysty kwadrat z gradientem)
-        const canvas = nativeImage.createEmpty();
-        trayIcon = nativeImage.createFromNamedImage('NSStatusAvailable', [16, 16]); // Fallback systemowy lub pusty
-        if (trayIcon.isEmpty()) {
-             // Tworzymy prosty kolorowy kwadrat jeśli named image nie działa
-             const buffer = Buffer.from(
-                'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH5gMREB0X8W7YVAAAADVJREFUOMtjYKAiYGFgYGBgYDBgYGBgYDBgYGBgYDBgYGBgYDBgYGBgYDBgYGBgYDBgYGBgYAApDwEAl7YdfwAAAABJRU5ErkJggg==',
-                'base64'
-            );
-            trayIcon = nativeImage.createFromBuffer(buffer);
+    const size = 16;
+    const buffer = Buffer.alloc(size * size * 4);
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const idx = (y * size + x) * 4;
+            const t = x / size;
+            buffer[idx]     = Math.round(t * 255);         // R: 0->255
+            buffer[idx + 1] = Math.round((1 - t) * 255);  // G: 255->0
+            buffer[idx + 2] = 255;                          // B: 255
+            buffer[idx + 3] = 255;                          // A: 255
         }
     }
+    const trayIcon = nativeImage.createFromBuffer(buffer, {
+        width: size,
+        height: size,
+        scaleFactor: 1.0
+    });
 
-    tray = new Tray(trayIcon.resize({ width: 16, height: 16 }));
+    tray = new Tray(trayIcon);
     tray.setToolTip('Steel Spectrum Overlay');
-
     updateTrayMenu();
 
     tray.on('click', () => {
-        if (mainWindow.isVisible()) {
-            mainWindow.hide();
-        } else {
-            mainWindow.show();
-        }
+        if (mainWindow.isVisible()) mainWindow.hide();
+        else mainWindow.show();
     });
 }
 
@@ -67,15 +66,12 @@ function updateTrayMenu() {
 
     const contextMenu = Menu.buildFromTemplate([
         {
-            label: mainWindow.isVisible() ? 'Ukryj' : 'Pokaż',
+            label: mainWindow && mainWindow.isVisible() ? 'Ukryj' : 'Pokaż',
             click: () => mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show()
         },
         {
             label: 'Ustawienia',
-            click: () => {
-                mainWindow.show();
-                mainWindow.webContents.send('open-settings-panel');
-            }
+            click: () => createSettingsWindow()
         },
         { type: 'separator' },
         {
@@ -83,8 +79,9 @@ function updateTrayMenu() {
             type: 'checkbox',
             checked: config.system.clickThrough,
             click: (item) => {
-                mainWindow.webContents.send('config-updated-from-main', { system: { clickThrough: item.checked } });
-                mainWindow.setIgnoreMouseEvents(item.checked, { forward: true });
+                config.system.clickThrough = item.checked;
+                saveConfig(config);
+                if (mainWindow) mainWindow.setIgnoreMouseEvents(item.checked, { forward: true });
             }
         },
         {
@@ -92,17 +89,48 @@ function updateTrayMenu() {
             type: 'checkbox',
             checked: config.system.alwaysOnTop,
             click: (item) => {
-                mainWindow.setAlwaysOnTop(item.checked);
-                mainWindow.webContents.send('config-updated-from-main', { system: { alwaysOnTop: item.checked } });
+                config.system.alwaysOnTop = item.checked;
+                saveConfig(config);
+                if (mainWindow) mainWindow.setAlwaysOnTop(item.checked);
             }
         },
         { type: 'separator' },
         { label: 'Zamknij', click: () => {
-            mainWindow.destroy(); // Pomiń event 'close' aby faktycznie zamknąć
+            app.isQuitting = true;
             app.quit();
         }}
     ]);
     tray.setContextMenu(contextMenu);
+}
+
+function createSettingsWindow() {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.focus();
+        return;
+    }
+
+    settingsWindow = new BrowserWindow({
+        width: 480,
+        height: 650,
+        title: 'Steel Spectrum — Ustawienia',
+        frame: true,
+        transparent: false,
+        alwaysOnTop: true,
+        resizable: false,
+        backgroundColor: '#0a0a0f',
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false
+        }
+    });
+
+    settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
+    settingsWindow.setMenuBarVisibility(false);
+
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
 }
 
 function registerShortcuts() {
@@ -113,43 +141,37 @@ function registerShortcuts() {
 
     globalShortcut.register('Ctrl+Shift+M', () => {
         const config = loadConfig();
-        const newState = !config.system.clickThrough;
-        mainWindow.setIgnoreMouseEvents(newState, { forward: true });
-        mainWindow.webContents.send('config-updated-from-main', { system: { clickThrough: newState } });
+        config.system.clickThrough = !config.system.clickThrough;
+        saveConfig(config);
+        if (mainWindow) {
+            mainWindow.setIgnoreMouseEvents(config.system.clickThrough, { forward: true });
+            mainWindow.webContents.send('config-updated-from-main', { system: { clickThrough: config.system.clickThrough } });
+        }
         updateTrayMenu();
     });
 
     globalShortcut.register('Ctrl+Shift+O', () => {
-        mainWindow.webContents.send('toggle-oscilloscope-hotkey');
+        if (mainWindow) mainWindow.webContents.send('toggle-oscilloscope-hotkey');
     });
 }
 
 function validateWindowPosition(winConfig) {
-    if (winConfig.x === null || winConfig.y === null) return null;
-
+    if (!winConfig || winConfig.x === null || winConfig.y === null) return null;
     const displays = screen.getAllDisplays();
-    const isVisible = displays.some(display => {
-        const bounds = display.bounds;
-        return (
-            winConfig.x >= bounds.x &&
-            winConfig.x < bounds.x + bounds.width &&
-            winConfig.y >= bounds.y &&
-            winConfig.y < bounds.y + bounds.height
-        );
+    const isVisible = displays.some(d => {
+        const b = d.bounds;
+        return winConfig.x >= b.x && winConfig.x < b.x + b.width && winConfig.y >= b.y && winConfig.y < b.y + b.height;
     });
-
     return isVisible ? { x: winConfig.x, y: winConfig.y } : null;
 }
 
 function createWindow() {
     const config = loadConfig();
-    const { window: winConfig } = config;
-
-    const validatedPos = validateWindowPosition(winConfig);
+    const validatedPos = validateWindowPosition(config.window);
 
     mainWindow = new BrowserWindow({
-        width: winConfig.width || 800,
-        height: winConfig.height || 200,
+        width: config.window.width || 800,
+        height: config.window.height || 200,
         x: validatedPos ? validatedPos.x : undefined,
         y: validatedPos ? validatedPos.y : undefined,
         transparent: true,
@@ -157,7 +179,7 @@ function createWindow() {
         alwaysOnTop: config.system.alwaysOnTop,
         backgroundColor: '#00000000',
         hasShadow: false,
-        show: false, // Pokażemy po animacji fade-in
+        show: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -165,9 +187,7 @@ function createWindow() {
         }
     });
 
-    if (!validatedPos) {
-        mainWindow.center();
-    }
+    if (!validatedPos) mainWindow.center();
 
     Menu.setApplicationMenu(null);
 
@@ -181,7 +201,7 @@ function createWindow() {
 
     mainWindow.webContents.on('context-menu', (e) => {
         e.preventDefault();
-        mainWindow.webContents.send('open-settings-panel');
+        createSettingsWindow();
     });
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
@@ -200,8 +220,6 @@ function createWindow() {
     mainWindow.once('ready-to-show', () => {
         mainWindow.setOpacity(0);
         mainWindow.show();
-
-        // Fade-in animacja
         let opacity = 0;
         const timer = setInterval(() => {
             opacity += 0.1;
@@ -217,29 +235,22 @@ function createWindow() {
         registerShortcuts();
     });
 
-    // Debounced save pozycji
     let moveTimeout;
-    const savePos = () => {
+    mainWindow.on('move', () => {
         if (moveTimeout) clearTimeout(moveTimeout);
         moveTimeout = setTimeout(() => {
             const currentConfig = loadConfig();
             const [x, y] = mainWindow.getPosition();
-            const [width, height] = mainWindow.getSize();
-            // Wysokość zapisujemy tylko jeśli panel jest zamknięty (podstawowa wysokość widgetu)
-            // Ale tutaj upraszczamy: w Task 3 wysokość jest w config.window.height
             currentConfig.window.x = x;
             currentConfig.window.y = y;
             saveConfig(currentConfig);
         }, 500);
-    };
-
-    mainWindow.on('move', savePos);
+    });
 }
 
 app.whenReady().then(() => {
     createWindow();
-
-    app.on('activate', function () {
+    app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 });
@@ -248,22 +259,8 @@ app.on('will-quit', () => {
     globalShortcut.unregisterAll();
 });
 
-app.on('window-all-closed', function () {
-    if (process.platform !== 'darwin') app.quit();
-});
-
-// Obsługa zdarzeń IPC
-ipcMain.on('resize-window', (event, newHeight) => {
-    if (mainWindow) {
-        const [width] = mainWindow.getSize();
-        mainWindow.setSize(width, newHeight);
-    }
-});
-
 ipcMain.on('move-window', (event, { x, y }) => {
-    if (mainWindow) {
-        mainWindow.setPosition(x, y);
-    }
+    if (mainWindow) mainWindow.setPosition(x, y);
 });
 
 ipcMain.on('move-window-relative', (event, { dx, dy }) => {
@@ -276,6 +273,7 @@ ipcMain.on('move-window-relative', (event, { dx, dy }) => {
 ipcMain.handle('toggle-click-through', (event, ignore) => {
     if (mainWindow) {
         mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
+        updateTrayMenu();
         return ignore;
     }
     return false;
@@ -286,9 +284,7 @@ ipcMain.handle('save-config', (event, config) => {
     return true;
 });
 
-ipcMain.handle('load-config', () => {
-    return loadConfig();
-});
+ipcMain.handle('load-config', () => loadConfig());
 
 ipcMain.handle('get-displays', () => {
     return screen.getAllDisplays().map((d, index) => ({
@@ -300,26 +296,21 @@ ipcMain.handle('get-displays', () => {
 
 ipcMain.on('move-to-display', (event, displayIndex) => {
     const displays = screen.getAllDisplays();
-    if (displays[displayIndex]) {
-        const targetDisplay = displays[displayIndex];
-        const { x, y, width, height } = targetDisplay.bounds;
-
-        // Wyśrodkuj okno na nowym monitorze
+    if (displays[displayIndex] && mainWindow) {
+        const d = displays[displayIndex];
         const [winWidth, winHeight] = mainWindow.getSize();
-        const newX = x + Math.floor((width - winWidth) / 2);
-        const newY = y + Math.floor((height - winHeight) / 2);
-
-        mainWindow.setPosition(newX, newY);
+        const x = d.bounds.x + Math.floor((d.bounds.width - winWidth) / 2);
+        const y = d.bounds.y + Math.floor((d.bounds.height - winHeight) / 2);
+        mainWindow.setPosition(x, y);
     }
 });
 
 ipcMain.handle('export-theme', async (event, themeData) => {
-    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+    const { filePath } = await dialog.showSaveDialog(settingsWindow || mainWindow, {
         title: 'Eksportuj motyw',
         defaultPath: 'theme.json',
         filters: [{ name: 'JSON', extensions: ['json'] }]
     });
-
     if (filePath) {
         fs.writeFileSync(filePath, JSON.stringify(themeData, null, 2));
         return true;
@@ -328,15 +319,15 @@ ipcMain.handle('export-theme', async (event, themeData) => {
 });
 
 ipcMain.handle('import-theme', async () => {
-    const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+    const { filePaths } = await dialog.showOpenDialog(settingsWindow || mainWindow, {
         title: 'Importuj motyw',
         filters: [{ name: 'JSON', extensions: ['json'] }],
         properties: ['openFile']
     });
-
     if (filePaths && filePaths.length > 0) {
-        const data = fs.readFileSync(filePaths[0], 'utf8');
-        return JSON.parse(data);
+        return JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
     }
     return null;
 });
+
+ipcMain.on('open-settings-window', () => createSettingsWindow());

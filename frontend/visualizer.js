@@ -6,7 +6,7 @@ class Visualizer {
 
         this.config = {
             bandCount: 16,
-            sensitivity: 1.5,
+            sensitivity: 1.0,
             decayFactor: 0.92,
             peakIndicators: true,
             glowIntensity: 15,
@@ -15,7 +15,8 @@ class Visualizer {
             mirrorMode: false,
             oscilloscopeMode: false,
             beatDetection: true,
-            beatThreshold: 0.7
+            beatThreshold: 0.7,
+            background: { enabled: false, color: "#000000", opacity: 0.5, borderRadius: 8 }
         };
 
         this.currentTheme = null;
@@ -26,8 +27,6 @@ class Visualizer {
         this.barSpacing = 4;
 
         this.bandCorrection = [];
-
-        // Inicjalizacja struktur danych przed startem
         this.initDataArrays();
         this.initBandCorrection();
 
@@ -35,12 +34,10 @@ class Visualizer {
         this.isBeatActive = false;
         this.beatDuration = 80;
         this.beatCooldown = 200;
-
         this.lastUpdateTime = 0;
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
-
         this.canvas.style.willChange = 'transform';
         this.animate();
     }
@@ -48,7 +45,8 @@ class Visualizer {
     initBandCorrection() {
         this.bandCorrection = new Array(this.config.bandCount).fill(0).map((_, i) => {
             const t = i / (this.config.bandCount - 1 || 1);
-            return 1.0 + t * 3.0;
+            // NOWA korekcja - łagodniejsza (bass x1.0, treble x2.5)
+            return 1.0 + t * 1.5;
         });
     }
 
@@ -74,6 +72,10 @@ class Visualizer {
             if (window.getTheme) this.currentTheme = window.getTheme(newConfig.visuals.theme);
         }
 
+        if (newConfig.background) {
+            this.config.background = { ...newConfig.background };
+        }
+
         if (oldBandCount !== this.config.bandCount) {
             this.initDataArrays();
             this.initBandCorrection();
@@ -97,11 +99,7 @@ class Visualizer {
     updateData(bands) {
         if (!bands || !Array.isArray(bands)) return;
         this.lastUpdateTime = Date.now();
-
-        if (this.displayedBands.length !== this.config.bandCount) {
-            this.initDataArrays();
-            this.initBandCorrection();
-        }
+        if (this.displayedBands.length !== this.config.bandCount) this.initDataArrays();
 
         const count = Math.min(bands.length, this.config.bandCount);
         for (let i = 0; i < count; i++) {
@@ -127,22 +125,12 @@ class Visualizer {
         const df = this.config.decayFactor;
         const now = Date.now();
         const isIdle = (now - this.lastUpdateTime > 200);
-
         for (let i = 0; i < count; i++) {
             const target = isIdle ? 0 : (this.targetBands[i] || 0);
-
-            if (target > this.displayedBands[i]) {
-                this.displayedBands[i] = target;
-            } else {
-                this.displayedBands[i] = (this.displayedBands[i] * df) + (target * (1 - df));
-            }
-
-            if (this.displayedBands[i] > this.peaks[i]) {
-                this.peaks[i] = this.displayedBands[i];
-            } else {
-                this.peaks[i] *= this.peakDecay;
-            }
-
+            if (target > this.displayedBands[i]) this.displayedBands[i] = target;
+            else this.displayedBands[i] = (this.displayedBands[i] * df) + (target * (1 - df));
+            if (this.displayedBands[i] > this.peaks[i]) this.peaks[i] = this.displayedBands[i];
+            else this.peaks[i] *= this.peakDecay;
             if (this.displayedBands[i] < 0.001) this.displayedBands[i] = 0;
             if (this.peaks[i] < 0.001) this.peaks[i] = 0;
         }
@@ -153,22 +141,32 @@ class Visualizer {
         const { width, height } = this.canvas;
         const ctx = this.ctx;
         const dpr = window.devicePixelRatio || 1;
-
-        if (!this.currentTheme && window.THEMES) {
-            this.currentTheme = window.THEMES[0];
-        }
+        if (!this.currentTheme && window.THEMES) this.currentTheme = window.THEMES[0];
 
         ctx.clearRect(0, 0, width, height);
 
-        const effectiveGlowIntensity = this.isBeatActive ? this.config.glowIntensity * 2.5 : this.config.glowIntensity;
-
-        if (this.config.oscilloscopeMode) {
-            this.drawOscilloscope(width, height, dpr, effectiveGlowIntensity);
-        } else if (this.config.mirrorMode) {
-            this.drawMirrorBars(width, height, dpr, effectiveGlowIntensity);
-        } else {
-            this.drawNormalBars(width, height, dpr, effectiveGlowIntensity);
+        // Rysuj tło jeśli włączone
+        if (this.config.background && this.config.background.enabled) {
+            const bg = this.config.background;
+            const r = parseInt(bg.color.slice(1, 3), 16);
+            const g = parseInt(bg.color.slice(3, 5), 16);
+            const b = parseInt(bg.color.slice(5, 7), 16);
+            ctx.save();
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${bg.opacity})`;
+            if (bg.borderRadius > 0 && ctx.roundRect) {
+                ctx.beginPath();
+                ctx.roundRect(0, 0, width, height, bg.borderRadius * dpr);
+                ctx.fill();
+            } else {
+                ctx.fillRect(0, 0, width, height);
+            }
+            ctx.restore();
         }
+
+        const effectiveGlowIntensity = this.isBeatActive ? this.config.glowIntensity * 2.5 : this.config.glowIntensity;
+        if (this.config.oscilloscopeMode) this.drawOscilloscope(width, height, dpr, effectiveGlowIntensity);
+        else if (this.config.mirrorMode) this.drawMirrorBars(width, height, dpr, effectiveGlowIntensity);
+        else this.drawNormalBars(width, height, dpr, effectiveGlowIntensity);
     }
 
     drawNormalBars(width, height, dpr, glow) {
@@ -182,12 +180,10 @@ class Visualizer {
         const centerX = width / 2;
         const barSpacing = (this.barSpacing * dpr) / 2;
         const barWidth = (centerX - (this.config.bandCount - 1) * barSpacing) / this.config.bandCount;
-
         ctx.save();
         ctx.translate(centerX, 0);
         this.renderBars(0, centerX, barWidth, barSpacing, this.displayedBands, this.peaks, dpr, glow);
         ctx.restore();
-
         ctx.save();
         ctx.translate(centerX, 0);
         ctx.scale(-1, 1);
@@ -199,32 +195,23 @@ class Visualizer {
         const ctx = this.ctx;
         const height = this.canvas.height;
         const cornerRadius = 4 * dpr;
-
         if (glow > 0) {
             ctx.shadowBlur = this.config.glowSpread * dpr;
             ctx.shadowColor = this.currentTheme ? this.currentTheme.glowColor : '#00ffff';
         }
-
         for (let i = 0; i < this.config.bandCount; i++) {
             const val = bands[i] || 0;
             if (val <= 0) continue;
-
             const barHeight = val * height;
             const x = startX + i * (barWidth + barSpacing);
             const y = height - barHeight;
-
             const gradient = this.getBarGradient(x, height, y);
             ctx.fillStyle = gradient;
             ctx.globalAlpha = this.config.barOpacity;
-
             ctx.beginPath();
-            if (ctx.roundRect) {
-                ctx.roundRect(x, y, barWidth, barHeight, [cornerRadius, cornerRadius, 0, 0]);
-            } else {
-                ctx.rect(x, y, barWidth, barHeight);
-            }
+            if (ctx.roundRect) ctx.roundRect(x, y, barWidth, barHeight, [cornerRadius, cornerRadius, 0, 0]);
+            else ctx.rect(x, y, barWidth, barHeight);
             ctx.fill();
-
             if (this.config.peakIndicators && peaks[i] > 0) {
                 const peakY = height - (peaks[i] * height);
                 const prevShadow = ctx.shadowBlur;
@@ -245,17 +232,14 @@ class Visualizer {
         const count = bands.length;
         if (count < 2) return;
         const step = width / (count - 1);
-
         ctx.save();
         if (glow > 0) {
             ctx.shadowBlur = this.config.glowSpread * dpr;
             ctx.shadowColor = this.currentTheme ? this.currentTheme.glowColor : '#00ffff';
         }
-
         ctx.beginPath();
         ctx.lineWidth = 2 * dpr;
         ctx.strokeStyle = this.currentTheme ? this.currentTheme.barGradient[this.currentTheme.barGradient.length - 1] : '#00ffff';
-
         for (let i = 0; i < count; i++) {
             const x = i * step;
             const y = height - (bands[i] * height * 0.8) - (height * 0.1);
@@ -298,5 +282,4 @@ class Visualizer {
         requestAnimationFrame(() => this.animate());
     }
 }
-
 window.Visualizer = Visualizer;

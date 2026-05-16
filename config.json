@@ -9,9 +9,10 @@
   },
   "audio": {
     "bandCount": 16,
-    "sensitivity": 1.5,
+    "sensitivity": 1.0,
     "decayFactor": 0.92,
-    "peakIndicators": true
+    "peakIndicators": true,
+    "mode": "magnitude"
   },
   "visuals": {
     "theme": "Neon Cyberpunk",
@@ -22,6 +23,12 @@
     "oscilloscopeMode": false,
     "beatDetection": true,
     "beatThreshold": 0.7
+  },
+  "background": {
+    "enabled": false,
+    "color": "#000000",
+    "opacity": 0.5,
+    "borderRadius": 8
   },
   "system": {
     "clickThrough": false,
