@@ -174,13 +174,22 @@ button.danger:hover { background: #442222; border-color: #ff5555; }
     border-radius: 7px;
     cursor: pointer;
     flex-shrink: 0;
-    background-image: linear-gradient(
-        to bottom,
-        transparent calc(50% - 1px),
-        rgba(255,255,255,0.15) calc(50% - 1px),
-        rgba(255,255,255,0.15) calc(50% + 1px),
-        transparent calc(50% + 1px)
-    );
+    /* Linie referencyjne: 50% (środek, 2.5) i 80% (neutralne 1.0 w skali 0-5) */
+    background-image:
+        linear-gradient(
+            to bottom,
+            transparent calc(80% - 1px),
+            rgba(0, 255, 136, 0.4) calc(80% - 1px),
+            rgba(0, 255, 136, 0.4) calc(80% + 1px),
+            transparent calc(80% + 1px)
+        ),
+        linear-gradient(
+            to bottom,
+            transparent calc(50% - 1px),
+            rgba(255,255,255,0.15) calc(50% - 1px),
+            rgba(255,255,255,0.15) calc(50% + 1px),
+            transparent calc(50% + 1px)
+        );
 }
 
 .vslider-fill {

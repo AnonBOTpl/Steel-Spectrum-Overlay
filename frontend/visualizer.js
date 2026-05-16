@@ -44,9 +44,12 @@ class Visualizer {
     }
 
     initBandCorrection() {
-        this.bandCorrection = new Array(this.config.bandCount).fill(0).map((_, i) => {
-            const t = i / (this.config.bandCount - 1 || 1);
-            return 1.0 + t * 1.5;
+        const count = this.config.bandCount;
+        const TREBLE_EXPONENT = 1.0; // 1.0 = 10x boost dla treble
+        this.bandCorrection = new Array(count).fill(0).map((_, i) => {
+            const t = i / (count - 1 || 1);
+            // Krzywa wykładnicza dla lepszego balansu tonów wysokich
+            return Math.pow(10, t * TREBLE_EXPONENT);
         });
     }
 

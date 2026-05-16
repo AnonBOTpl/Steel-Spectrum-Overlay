@@ -264,7 +264,7 @@ class SettingsManager {
             grid.appendChild(cell);
 
             const track = cell.querySelector('.vslider-track');
-            const slider = new VerticalSlider(track, 0, 2, 0.05, val, (newVal) => {
+            const slider = new VerticalSlider(track, 0, 5, 0.05, val, (newVal) => {
                 this.config.audio.bandGains[i] = newVal;
                 const label = document.getElementById(`gain-v-${i}`);
                 if (label) {
