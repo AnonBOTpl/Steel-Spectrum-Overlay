@@ -7,6 +7,7 @@ const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 let mainWindow;
 let settingsWindow;
 let tray;
+let isBackendConnected = false;
 
 function loadConfig() {
     try {
@@ -23,12 +24,22 @@ function loadConfig() {
 function saveConfig(config) {
     try {
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-        // Rozsyłamy aktualizację do wszystkich okien
-        if (mainWindow) mainWindow.webContents.send('config-updated', config);
-        if (settingsWindow) settingsWindow.webContents.send('config-updated', config);
     } catch (err) {
         console.error('Błąd podczas zapisywania config.json:', err);
+        return;
     }
+    // Rozsyłamy aktualizację do wszystkich okien tylko po udanym zapisie
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('config-updated', config);
+    if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send('config-updated', config);
+}
+
+function setBackendStatus(connected) {
+    isBackendConnected = connected;
+    if (mainWindow && !mainWindow.isDestroyed())
+        mainWindow.webContents.send('backend-status-changed', connected);
+    if (settingsWindow && !settingsWindow.isDestroyed())
+        settingsWindow.webContents.send('backend-status-changed', connected);
+    if (tray) updateTrayMenu();
 }
 
 function createTray() {
@@ -79,8 +90,9 @@ function updateTrayMenu() {
             type: 'checkbox',
             checked: config.system.clickThrough,
             click: (item) => {
-                config.system.clickThrough = item.checked;
-                saveConfig(config);
+                const freshConfig = loadConfig();
+                freshConfig.system.clickThrough = item.checked;
+                saveConfig(freshConfig);
                 if (mainWindow) mainWindow.setIgnoreMouseEvents(item.checked, { forward: true });
             }
         },
@@ -89,8 +101,9 @@ function updateTrayMenu() {
             type: 'checkbox',
             checked: config.system.alwaysOnTop,
             click: (item) => {
-                config.system.alwaysOnTop = item.checked;
-                saveConfig(config);
+                const freshConfig = loadConfig();
+                freshConfig.system.alwaysOnTop = item.checked;
+                saveConfig(freshConfig);
                 if (mainWindow) mainWindow.setAlwaysOnTop(item.checked);
             }
         },
@@ -145,7 +158,6 @@ function registerShortcuts() {
         saveConfig(config);
         if (mainWindow) {
             mainWindow.setIgnoreMouseEvents(config.system.clickThrough, { forward: true });
-            mainWindow.webContents.send('config-updated-from-main', { system: { clickThrough: config.system.clickThrough } });
         }
         updateTrayMenu();
     });
@@ -331,3 +343,15 @@ ipcMain.handle('import-theme', async () => {
 });
 
 ipcMain.on('open-settings-window', () => createSettingsWindow());
+
+ipcMain.on('report-backend-status', (event, connected) => {
+    setBackendStatus(connected);
+});
+
+ipcMain.handle('get-backend-status', () => isBackendConnected);
+
+ipcMain.on('band-data-update', (event, bands) => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('band-data-update', bands);
+    }
+});

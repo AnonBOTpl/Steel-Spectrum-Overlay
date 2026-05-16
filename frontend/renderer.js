@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let socket = null;
     let reconnectTimeout = null;
+    let lastBandDataSend = 0;
 
     async function init() {
         try {
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         socket.onopen = () => {
             console.log('POŁĄCZONO z backendem audio.');
+            window.electronAPI.reportBackendStatus(true);
             if (reconnectTimeout) {
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
@@ -41,6 +43,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const data = JSON.parse(event.data);
                 if (data && data.bands) {
                     visualizer.updateData(data.bands);
+
+                    // Przesyłanie danych do okna ustawień (throtled 5Hz)
+                    const now = Date.now();
+                    if (now - lastBandDataSend > 200) {
+                        lastBandDataSend = now;
+                        window.electronAPI.sendBandData(data.bands);
+                    }
                 }
             } catch (err) {
                 console.error('Błąd parsowania danych WebSocket:', err);
@@ -48,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         socket.onclose = () => {
+            window.electronAPI.reportBackendStatus(false);
             scheduleReconnect();
         };
 
@@ -80,7 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.electronAPI.onConfigUpdatedFromMain((data) => {
-        // To zdarzenie przychodzi np. z menu tray
         if (data.system && data.system.clickThrough !== undefined) {
             updateClickThroughIndicator(data.system.clickThrough);
         }
@@ -113,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     checkFirstRun();
 
-    // Ręczne przeciąganie okna (Manual Drag)
+    // Ręczne przeciąganie okna
     let isDragging = false;
     let lastMouseX, lastMouseY;
 

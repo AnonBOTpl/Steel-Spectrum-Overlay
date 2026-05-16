@@ -18,7 +18,7 @@ class AudioServer:
     def __init__(self, bands=16, port=8765, sensitivity=1.0, demo=False, mode='magnitude'):
         self.bands_count = bands
         self.port = port
-        self.sensitivity = sensitivity # Sensitivity zostawiamy jako mnożnik normalizacji
+        self.sensitivity = sensitivity # Używane jako mnożnik normalizacji
         self.demo = demo
         self.mode = mode # 'magnitude' lub 'db'
         self.clients = set()
@@ -82,12 +82,14 @@ class AudioServer:
                 raw = np.mean(fft_res[indices])
 
                 if self.mode == 'db':
-                    # Tryb dB - logarytmiczny
-                    if raw > 0:
-                        db_val = 20 * np.log10(raw + 1e-9)
-                        val = (db_val + 80) / 80.0
-                    else:
-                        val = 0.0
+                    # Tryb dB - poprawna normalizacja
+                    # Typowy zakres FFT dla float32 WASAPI to ok. 0-2000
+                    normalized_raw = raw / 2000.0
+                    normalized_raw = np.clip(normalized_raw, 1e-9, 1.0)
+                    db_val = 20 * np.log10(normalized_raw) # zakres: -180 do 0 dB
+                    # Mapuj [-60dB, 0dB] -> [0.0, 1.0]
+                    val = (db_val + 60.0) / 60.0
+                    val = float(np.clip(val, 0.0, 1.0))
                 else:
                     # Tryb magnitude - liniowy
                     val = raw / 50.0
@@ -109,7 +111,7 @@ class AudioServer:
         """Generuje syntetyczne dane do trybu demo."""
         t = time.time()
 
-        # Symulacja ciszy
+        # Symulacja ciszy co 12s
         if int(t) % 12 >= 10:
             self.current_bands = np.zeros(self.bands_count)
         else:
@@ -142,7 +144,7 @@ class AudioServer:
 
         if not self.demo:
             if pyaudio is None:
-                print("Błąd: pyaudiowpatch nie jest zainstalowany. Tryb audio wymaga Windows i tej biblioteki.")
+                print("Błąd: pyaudiowpatch nie jest zainstalowany. Tryb audio wymaga Windows.")
                 sys.exit(1)
 
             p = pyaudio.PyAudio()
@@ -162,7 +164,7 @@ class AudioServer:
                             found = True
                             break
                     if not found:
-                        print("Błąd: Nie znaleziono urządzenia loopback dla domyślnego wyjścia.")
+                        print("Błąd: Nie znaleziono urządzenia loopback.")
                         sys.exit(1)
 
                 print(f"Przechwytywanie z: {default_device['name']}")
@@ -237,17 +239,15 @@ def main():
     parser = argparse.ArgumentParser(description="Steel-Spectrum-Overlay Audio Server")
     parser.add_argument("--bands", type=int, choices=[8, 12, 16, 32], default=16, help="Liczba pasm")
     parser.add_argument("--port", type=int, default=8765, help="Port WebSocket")
-    parser.add_argument("--sensitivity", type=float, default=1.0, help="Mnożnik czułości (backend normalization)")
-    parser.add_argument("--mode", choices=["magnitude", "db"], default="magnitude", help="Tryb przetwarzania: magnitude (liniowy) lub db (logarytmiczny)")
-    parser.add_argument("--demo", action="store_true", help="Tryb demo z syntetycznymi danymi")
+    parser.add_argument("--sensitivity", type=float, default=1.0, help="Mnożnik czułości")
+    parser.add_argument("--mode", choices=["magnitude", "db"], default="magnitude", help="Tryb: magnitude lub db")
+    parser.add_argument("--demo", action="store_true", help="Tryb demo")
 
     args = parser.parse_args()
-
     server = AudioServer(bands=args.bands, port=args.port, sensitivity=args.sensitivity, mode=args.mode, demo=args.demo)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, server.stop)

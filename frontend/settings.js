@@ -12,14 +12,17 @@ class SettingsManager {
         this.setupEventListeners();
         this.applyConfigToUI();
         this.initCalibrationGrid();
+        this.initBandGainsGrid();
+
+        this.updateCalibration();
+        this.initBackendStatus();
 
         // Nasłuchiwanie na aktualizacje konfiguracji z innych okien
         window.electronAPI.onConfigUpdated((newConfig) => {
             this.config = newConfig;
             this.applyConfigToUI();
+            this.initBandGainsGrid();
         });
-
-        this.updateCalibration();
     }
 
     populateThemes() {
@@ -113,7 +116,11 @@ class SettingsManager {
             if (other) other.value = value;
         }
 
-        if (path === 'audio.bandCount') this.initCalibrationGrid();
+        if (path === 'audio.bandCount') {
+            this.config.audio.bandGains = new Array(value).fill(1.0);
+            this.initCalibrationGrid();
+            this.initBandGainsGrid();
+        }
 
         this.debouncedSave();
     }
@@ -149,17 +156,89 @@ class SettingsManager {
         for (let i = 0; i < count; i++) {
             const cell = document.createElement('div');
             cell.className = 'raw-cell';
-            cell.innerHTML = `<span class="raw-label">B${i+1}</span><span class="raw-value" id="raw-v-${i}">0.00</span>`;
+            cell.innerHTML = `<span class="raw-label">B${i+1}</span><span class="raw-value" id="raw-v-${i}">0.000</span>`;
             grid.appendChild(cell);
         }
     }
 
+    initBandGainsGrid() {
+        const grid = document.getElementById('band-gains-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const count = this.config.audio.bandCount;
+        if (!this.config.audio.bandGains || this.config.audio.bandGains.length !== count) {
+            this.config.audio.bandGains = new Array(count).fill(1.0);
+        }
+        const gains = this.config.audio.bandGains;
+
+        grid.style.gridTemplateColumns = `repeat(${count <= 16 ? count : 16}, 1fr)`;
+
+        for (let i = 0; i < count; i++) {
+            const val = gains[i];
+            const cell = document.createElement('div');
+            cell.className = 'gain-cell';
+            cell.innerHTML = `
+                <span class="gain-label">B${i + 1}</span>
+                <input type="range" class="gain-slider" data-band="${i}" min="0" max="2" step="0.05" value="${val}" orient="vertical">
+                <span class="gain-value" id="gain-v-${i}">${val.toFixed(2)}</span>
+            `;
+            grid.appendChild(cell);
+        }
+
+        grid.querySelectorAll('.gain-slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const bandIndex = parseInt(e.target.dataset.band);
+                const value = parseFloat(e.target.value);
+                this.config.audio.bandGains[bandIndex] = value;
+                const label = document.getElementById(`gain-v-${bandIndex}`);
+                if (label) {
+                    label.textContent = value.toFixed(2);
+                    label.style.color = value > 1.05 ? '#00ff88' : value < 0.95 ? '#ff5555' : '#e0e0e0';
+                }
+                this.debouncedSave();
+            });
+        });
+
+        const resetBtn = document.getElementById('reset-gains-btn');
+        if (resetBtn) {
+            const newBtn = resetBtn.cloneNode(true);
+            resetBtn.parentNode.replaceChild(newBtn, resetBtn);
+            newBtn.addEventListener('click', () => {
+                this.config.audio.bandGains = new Array(count).fill(1.0);
+                this.initBandGainsGrid();
+                this.debouncedSave();
+            });
+        }
+    }
+
     updateCalibration() {
-        // Dane pobieramy z procesu głównego lub przez współdzieloną pamięć
-        // W tej architekturze settings.html nie ma połączenia WS,
-        // więc wartości Raw będą aktualizowane tylko w głównym oknie wizualizatora
-        // lub musielibyśmy przesyłać je przez IPC (co obciąża CPU).
-        // Zostawiamy puste lub implementujemy przesyłanie co 200ms.
+        window.electronAPI.onBandDataUpdate((bands) => {
+            if (!Array.isArray(bands)) return;
+            bands.forEach((val, i) => {
+                const el = document.getElementById(`raw-v-${i}`);
+                if (el) el.textContent = val.toFixed(3);
+            });
+        });
+    }
+
+    async initBackendStatus() {
+        const connected = await window.electronAPI.getBackendStatus();
+        this.updateStatusUI(connected);
+        window.electronAPI.onBackendStatusChanged((status) => this.updateStatusUI(status));
+    }
+
+    updateStatusUI(connected) {
+        const dot = document.getElementById('status-dot');
+        const text = document.getElementById('status-text');
+        if (!dot || !text) return;
+        if (connected) {
+            dot.className = 'connected';
+            text.textContent = 'Backend połączony';
+        } else {
+            dot.className = 'disconnected';
+            text.textContent = 'Brak połączenia z backendem';
+        }
     }
 
     async exportTheme() {
@@ -187,13 +266,30 @@ class SettingsManager {
         const defaults = {
             "version": 1,
             "window": { "x": null, "y": null, "width": 800, "height": 200, "displayId": 0 },
-            "audio": { "bandCount": 16, "sensitivity": 1.0, "decayFactor": 0.92, "peakIndicators": true, "mode": "magnitude" },
-            "visuals": { "theme": "Neon Cyberpunk", "glowIntensity": 15, "glowSpread": 8, "barOpacity": 0.9, "mirrorMode": false, "oscilloscopeMode": false, "beatDetection": true, "beatThreshold": 0.7 },
+            "audio": {
+                "bandCount": 16,
+                "sensitivity": 1.0,
+                "decayFactor": 0.92,
+                "peakIndicators": true,
+                "mode": "magnitude",
+                "bandGains": new Array(16).fill(1.0)
+            },
+            "visuals": {
+                "theme": "Neon Cyberpunk",
+                "glowIntensity": 15,
+                "glowSpread": 8,
+                "barOpacity": 0.9,
+                "mirrorMode": false,
+                "oscilloscopeMode": false,
+                "beatDetection": true,
+                "beatThreshold": 0.7
+            },
             "background": { "enabled": false, "color": "#000000", "opacity": 0.5, "borderRadius": 8 },
             "system": { "clickThrough": false, "alwaysOnTop": true, "startMinimized": false }
         };
         this.config = JSON.parse(JSON.stringify(defaults));
         this.applyConfigToUI();
+        this.initBandGainsGrid();
         window.electronAPI.saveConfig(this.config);
     }
 }
