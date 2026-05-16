@@ -86,6 +86,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Obsługa hotkeya oscyloskopu
+    window.electronAPI.onToggleOscilloscopeHotkey(() => {
+        if (settings.config && settings.config.visuals) {
+            const newState = !settings.config.visuals.oscilloscopeMode;
+            settings.config.visuals.oscilloscopeMode = newState;
+            visualizer.updateConfig(settings.config);
+            settings.applyConfigToUI();
+            window.electronAPI.saveConfig(settings.config);
+        }
+    });
+
+    // Synchronizacja z menu Tray (Main -> Renderer)
+    window.electronAPI.onConfigUpdatedFromMain((data) => {
+        if (settings.config) {
+            if (data.system) {
+                Object.assign(settings.config.system, data.system);
+
+                // Aktualizacja UI i wizualnych indykatorów
+                if (data.system.clickThrough !== undefined) {
+                    const indicator = document.getElementById('click-through-indicator');
+                    if (indicator) {
+                        if (data.system.clickThrough) indicator.classList.remove('hidden');
+                        else indicator.classList.add('hidden');
+                    }
+                }
+            }
+            settings.applyConfigToUI();
+            visualizer.updateConfig(settings.config);
+            window.electronAPI.saveConfig(settings.config);
+        }
+    });
+
+    // Tooltip powitalny
+    async function checkFirstRun() {
+        const config = await window.electronAPI.loadConfig();
+        if (!config || config.window.x === null) {
+            const tooltip = document.getElementById('welcome-tooltip');
+            if (tooltip) tooltip.classList.remove('hidden');
+        }
+    }
+    checkFirstRun();
+
     // Ręczne przeciąganie okna (Manual Drag) - Poprawiona logika płynności
     let isDragging = false;
     let lastMouseX, lastMouseY;
