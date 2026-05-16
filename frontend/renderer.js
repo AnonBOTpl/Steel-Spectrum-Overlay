@@ -72,12 +72,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Obsługa menu kontekstowego (Prawy przycisk myszy)
-    window.addEventListener('contextmenu', (e) => {
+    // Łapiemy na document zamiast window, żeby przechwycić przed potencjalnymi innymi elementami
+    document.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
         settings.togglePanel();
         return false;
-    });
+    }, true); // true = capture phase
 
     window.electronAPI.onOpenSettingsPanel(() => {
         if (!settings.isOpen) {
