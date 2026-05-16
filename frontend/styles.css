@@ -41,7 +41,14 @@ body, html {
     justify-content: space-between;
     align-items: center;
     padding-bottom: 10px;
+    margin-bottom: 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .status-row {
@@ -184,6 +191,18 @@ button {
 button:hover {
     background: #3a3a45;
     border-color: #00ffff;
+}
+
+button.primary {
+    background: #005555;
+    border-color: #00ffff;
+    font-weight: bold;
+    padding: 8px 15px;
+}
+
+button.primary:hover {
+    background: #007777;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
 }
 
 button.danger {

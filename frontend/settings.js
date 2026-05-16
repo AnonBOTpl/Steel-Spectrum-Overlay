@@ -74,6 +74,15 @@ class SettingsManager {
         document.getElementById('export-theme-btn').addEventListener('click', () => this.exportTheme());
         document.getElementById('import-theme-btn').addEventListener('click', () => this.importTheme());
         document.getElementById('reset-defaults-btn').addEventListener('click', () => this.resetToDefaults());
+
+        const saveCloseBtn = document.getElementById('save-close-btn');
+        if (saveCloseBtn) {
+            saveCloseBtn.addEventListener('click', () => {
+                // Wymuś zapis natychmiastowy
+                window.electronAPI.saveConfig(this.config);
+                this.togglePanel();
+            });
+        }
     }
 
     async loadDisplays() {
