@@ -63,10 +63,15 @@ class SettingsManager {
 
         // Obsługa monitorów
         const moveBtn = document.getElementById('move-display-btn');
-        moveBtn.addEventListener('click', () => {
-            const select = document.getElementById('display-select');
-            window.electronAPI.moveToDisplay(parseInt(select.value));
-        });
+        if (moveBtn) {
+            moveBtn.addEventListener('click', () => {
+                const select = document.getElementById('display-select');
+                const displayId = parseInt(select.value);
+                this.config.window.displayId = displayId;
+                window.electronAPI.moveToDisplay(displayId);
+                this.debouncedSave();
+            });
+        }
 
         this.loadDisplays();
 
@@ -88,10 +93,15 @@ class SettingsManager {
     async loadDisplays() {
         const displays = await window.electronAPI.getDisplays();
         const select = document.getElementById('display-select');
+        if (!select) return;
         select.innerHTML = '';
         displays.forEach(d => {
             const option = document.createElement('option');
             option.value = d.index;
+            // Sprawdź czy mamy config i czy to jest aktualny monitor
+            if (this.config && this.config.window.displayId === d.index) {
+                option.selected = true;
+            }
             option.textContent = `Monitor ${d.index + 1} — ${d.bounds.width}×${d.bounds.height}`;
             select.appendChild(option);
         });
@@ -138,6 +148,17 @@ class SettingsManager {
 
         // Live preview w wizualizatorze
         this.visualizer.updateConfig(this.config);
+
+        // Indicator click-through
+        if (path === 'system.clickThrough') {
+            const indicator = document.getElementById('click-through-indicator');
+            if (indicator) {
+                if (value) indicator.classList.remove('hidden');
+                else indicator.classList.add('hidden');
+            }
+            // Powiadom proces główny (dla Tray menu checkmark)
+            window.electronAPI.toggleClickThrough(value);
+        }
 
         // Debounced save
         this.debouncedSave();

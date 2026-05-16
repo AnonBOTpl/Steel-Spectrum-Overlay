@@ -2,6 +2,23 @@
 
 Wszystkie istotne zmiany w projekcie Steel-Spectrum-Overlay.
 
+## [1.5.0] - 2025-05-13
+
+### Dodano
+- Pełna integracja z System Tray (menu kontekstowe, szybkie ukrywanie, statusy).
+- Globalne skróty klawiszowe (Ctrl+Shift+E, M, O) działające niezależnie od aktywnego okna.
+- Obsługa wielu monitorów z inteligentnym centrowaniem i zapisem `displayId`.
+- Zapamiętywanie pozycji i rozmiaru okna między sesjami z walidacją widoczności.
+- Wizualny wskaźnik trybu Click-through (🖱️).
+- Efekt Fade-in przy uruchamianiu aplikacji.
+- Tooltip powitalny przy pierwszym uruchomieniu.
+- Skrypty `start_debug.vbs` i `start_silent.vbs` do wygodnego uruchamiania na Windows.
+- Przycisk "Zapisz i zamknij" w panelu ustawień.
+
+### Naprawiono
+- Poprawiono logikę zamykania okna (teraz zawsze chowa się do tray).
+- Ulepszono stabilność przeciągania okna i interakcji z menu kontekstowym.
+
 ## [1.4.0] - 2025-05-13
 
 ### Dodano

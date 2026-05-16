@@ -14,5 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Obsługa zdarzeń z Main do Renderer
     onConfigUpdated: (callback) => ipcRenderer.on('config-updated', (event, config) => callback(config)),
-    onOpenSettingsPanel: (callback) => ipcRenderer.on('open-settings-panel', () => callback())
+    onConfigUpdatedFromMain: (callback) => ipcRenderer.on('config-updated-from-main', (event, data) => callback(data)),
+    onOpenSettingsPanel: (callback) => ipcRenderer.on('open-settings-panel', () => callback()),
+    onToggleOscilloscopeHotkey: (callback) => ipcRenderer.on('toggle-oscilloscope-hotkey', () => callback())
 });
