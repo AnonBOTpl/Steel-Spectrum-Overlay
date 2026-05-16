@@ -22,10 +22,13 @@ class Visualizer {
         this.targetBands = [];
         this.displayedBands = [];
         this.peaks = [];
-        this.peakDecay = 0.992; // Nieco wolniejszy decay dla płynności
+        this.peakDecay = 0.992;
         this.barSpacing = 4;
 
         this.bandCorrection = [];
+
+        // Inicjalizacja struktur danych przed startem
+        this.initDataArrays();
         this.initBandCorrection();
 
         this.lastBeatTime = 0;
@@ -102,7 +105,7 @@ class Visualizer {
 
         const count = Math.min(bands.length, this.config.bandCount);
         for (let i = 0; i < count; i++) {
-            const rawValue = (bands[i] || 0) * this.config.sensitivity * this.bandCorrection[i];
+            const rawValue = (bands[i] || 0) * this.config.sensitivity * (this.bandCorrection[i] || 1);
             this.targetBands[i] = Math.min(Math.max(rawValue, 0), 1);
         }
 
@@ -119,31 +122,27 @@ class Visualizer {
         }
     }
 
-    // Nowa metoda kroku animacji - zapewnia płynność niezależnie od sieci
     updateAnimationStep() {
+        const count = this.config.bandCount;
         const df = this.config.decayFactor;
         const now = Date.now();
         const isIdle = (now - this.lastUpdateTime > 200);
 
-        for (let i = 0; i < this.config.bandCount; i++) {
+        for (let i = 0; i < count; i++) {
             const target = isIdle ? 0 : (this.targetBands[i] || 0);
 
             if (target > this.displayedBands[i]) {
-                // Natychmiastowy wzrost
                 this.displayedBands[i] = target;
             } else {
-                // Płynne opadanie EMA
                 this.displayedBands[i] = (this.displayedBands[i] * df) + (target * (1 - df));
             }
 
-            // Peak detection
             if (this.displayedBands[i] > this.peaks[i]) {
                 this.peaks[i] = this.displayedBands[i];
             } else {
                 this.peaks[i] *= this.peakDecay;
             }
 
-            // Hard clamp do zera
             if (this.displayedBands[i] < 0.001) this.displayedBands[i] = 0;
             if (this.peaks[i] < 0.001) this.peaks[i] = 0;
         }
@@ -244,6 +243,7 @@ class Visualizer {
         const ctx = this.ctx;
         const bands = this.displayedBands;
         const count = bands.length;
+        if (count < 2) return;
         const step = width / (count - 1);
 
         ctx.save();
