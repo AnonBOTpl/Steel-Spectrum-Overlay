@@ -102,22 +102,17 @@ class Visualizer {
 
         const count = Math.min(bands.length, this.config.bandCount);
         for (let i = 0; i < count; i++) {
-            // Zastosowanie korekcji pasma przed smoothingiem
             const rawValue = (bands[i] || 0) * this.config.sensitivity * this.bandCorrection[i];
             const clampedValue = Math.min(Math.max(rawValue, 0), 1);
 
+            // Tylko "podbijaj" wartość gdy nowe dane są wyższe - decay robi applyDecay()
             if (clampedValue > this.displayedBands[i]) {
                 this.displayedBands[i] = clampedValue;
-            } else {
-                const df = this.config.decayFactor;
-                this.displayedBands[i] = (this.displayedBands[i] * df) + (clampedValue * (1 - df));
             }
 
+            // Peak: tylko podbijaj, nigdy nie obniżaj tutaj - robi to applyDecay()
             if (this.displayedBands[i] > this.peaks[i]) {
                 this.peaks[i] = this.displayedBands[i];
-            } else {
-                // Płynne opadanie do zera (bez minimalnego progu)
-                this.peaks[i] = Math.max(0, this.peaks[i] * this.peakDecay);
             }
         }
 
@@ -135,6 +130,21 @@ class Visualizer {
         }
     }
 
+    applyDecay() {
+        const df = this.config.decayFactor;
+        for (let i = 0; i < this.displayedBands.length; i++) {
+            // Aplikuj decay zawsze — nawet gdy nie ma nowych danych z WebSocket
+            if (this.displayedBands[i] > 0) {
+                this.displayedBands[i] = this.displayedBands[i] * df;
+                if (this.displayedBands[i] < 0.0005) this.displayedBands[i] = 0;
+            }
+            if (this.peaks[i] > 0) {
+                this.peaks[i] = this.peaks[i] * this.peakDecay;
+                if (this.peaks[i] < 0.0005) this.peaks[i] = 0;
+            }
+        }
+    }
+
     draw() {
         if (!this.canvas || !this.ctx) return;
         const { width, height } = this.canvas;
@@ -145,7 +155,7 @@ class Visualizer {
             this.currentTheme = window.THEMES[0];
         }
 
-        // Czyścimy do pełnej przezroczystości (Punkt 3 poprawki)
+        // Czyścimy do pełnej przezroczystości
         ctx.clearRect(0, 0, width, height);
 
         const effectiveGlowIntensity = this.isBeatActive ? this.config.glowIntensity * 2.5 : this.config.glowIntensity;
@@ -196,11 +206,9 @@ class Visualizer {
 
         for (let i = 0; i < this.config.bandCount; i++) {
             const val = bands[i] || 0;
-            // Pełna wysokość (1.0 = 100% height)
             const barHeight = val * height;
 
-            // Próg rysowania (Punkt 6 poprawki)
-            if (val <= 0.002) continue;
+            if (val <= 0.001) continue;
 
             const x = startX + i * (barWidth + barSpacing);
             const y = height - barHeight;
@@ -286,6 +294,7 @@ class Visualizer {
     }
 
     animate() {
+        this.applyDecay(); // Zawsze aplikuj decay
         this.draw();
         requestAnimationFrame(() => this.animate());
     }
