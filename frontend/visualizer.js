@@ -19,20 +19,21 @@ class Visualizer {
         };
 
         this.currentTheme = null;
+        this.targetBands = [];
         this.displayedBands = [];
         this.peaks = [];
-        this.peakDecay = 0.99;
+        this.peakDecay = 0.992; // Nieco wolniejszy decay dla płynności
         this.barSpacing = 4;
 
-        // Korekcja pasm (wzmocnienie wysokich tonów)
         this.bandCorrection = [];
         this.initBandCorrection();
 
-        // Beat detection state
         this.lastBeatTime = 0;
         this.isBeatActive = false;
         this.beatDuration = 80;
         this.beatCooldown = 200;
+
+        this.lastUpdateTime = 0;
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -44,13 +45,12 @@ class Visualizer {
     initBandCorrection() {
         this.bandCorrection = new Array(this.config.bandCount).fill(0).map((_, i) => {
             const t = i / (this.config.bandCount - 1 || 1);
-            return 1.0 + t * 3.0; // Bas x1.0, Treble x4.0
+            return 1.0 + t * 3.0;
         });
     }
 
     updateConfig(newConfig) {
         if (!newConfig) return;
-
         const oldBandCount = this.config.bandCount;
 
         if (newConfig.audio) {
@@ -68,10 +68,7 @@ class Visualizer {
             this.config.oscilloscopeMode = newConfig.visuals.oscilloscopeMode;
             this.config.beatDetection = newConfig.visuals.beatDetection;
             this.config.beatThreshold = newConfig.visuals.beatThreshold;
-
-            if (window.getTheme) {
-                this.currentTheme = window.getTheme(newConfig.visuals.theme);
-            }
+            if (window.getTheme) this.currentTheme = window.getTheme(newConfig.visuals.theme);
         }
 
         if (oldBandCount !== this.config.bandCount) {
@@ -81,8 +78,10 @@ class Visualizer {
     }
 
     initDataArrays() {
-        this.displayedBands = new Array(this.config.bandCount).fill(0);
-        this.peaks = new Array(this.config.bandCount).fill(0);
+        const count = this.config.bandCount;
+        this.targetBands = new Array(count).fill(0);
+        this.displayedBands = new Array(count).fill(0);
+        this.peaks = new Array(count).fill(0);
     }
 
     resize() {
@@ -94,6 +93,7 @@ class Visualizer {
 
     updateData(bands) {
         if (!bands || !Array.isArray(bands)) return;
+        this.lastUpdateTime = Date.now();
 
         if (this.displayedBands.length !== this.config.bandCount) {
             this.initDataArrays();
@@ -103,20 +103,9 @@ class Visualizer {
         const count = Math.min(bands.length, this.config.bandCount);
         for (let i = 0; i < count; i++) {
             const rawValue = (bands[i] || 0) * this.config.sensitivity * this.bandCorrection[i];
-            const clampedValue = Math.min(Math.max(rawValue, 0), 1);
-
-            // Tylko "podbijaj" wartość gdy nowe dane są wyższe - decay robi applyDecay()
-            if (clampedValue > this.displayedBands[i]) {
-                this.displayedBands[i] = clampedValue;
-            }
-
-            // Peak: tylko podbijaj, nigdy nie obniżaj tutaj - robi to applyDecay()
-            if (this.displayedBands[i] > this.peaks[i]) {
-                this.peaks[i] = this.displayedBands[i];
-            }
+            this.targetBands[i] = Math.min(Math.max(rawValue, 0), 1);
         }
 
-        // Beat Detection
         if (this.config.beatDetection) {
             const now = Date.now();
             if (now - this.lastBeatTime > this.beatCooldown) {
@@ -130,18 +119,33 @@ class Visualizer {
         }
     }
 
-    applyDecay() {
+    // Nowa metoda kroku animacji - zapewnia płynność niezależnie od sieci
+    updateAnimationStep() {
         const df = this.config.decayFactor;
-        for (let i = 0; i < this.displayedBands.length; i++) {
-            // Aplikuj decay zawsze — nawet gdy nie ma nowych danych z WebSocket
-            if (this.displayedBands[i] > 0) {
-                this.displayedBands[i] = this.displayedBands[i] * df;
-                if (this.displayedBands[i] < 0.0005) this.displayedBands[i] = 0;
+        const now = Date.now();
+        const isIdle = (now - this.lastUpdateTime > 200);
+
+        for (let i = 0; i < this.config.bandCount; i++) {
+            const target = isIdle ? 0 : (this.targetBands[i] || 0);
+
+            if (target > this.displayedBands[i]) {
+                // Natychmiastowy wzrost
+                this.displayedBands[i] = target;
+            } else {
+                // Płynne opadanie EMA
+                this.displayedBands[i] = (this.displayedBands[i] * df) + (target * (1 - df));
             }
-            if (this.peaks[i] > 0) {
-                this.peaks[i] = this.peaks[i] * this.peakDecay;
-                if (this.peaks[i] < 0.0005) this.peaks[i] = 0;
+
+            // Peak detection
+            if (this.displayedBands[i] > this.peaks[i]) {
+                this.peaks[i] = this.displayedBands[i];
+            } else {
+                this.peaks[i] *= this.peakDecay;
             }
+
+            // Hard clamp do zera
+            if (this.displayedBands[i] < 0.001) this.displayedBands[i] = 0;
+            if (this.peaks[i] < 0.001) this.peaks[i] = 0;
         }
     }
 
@@ -155,7 +159,6 @@ class Visualizer {
             this.currentTheme = window.THEMES[0];
         }
 
-        // Czyścimy do pełnej przezroczystości
         ctx.clearRect(0, 0, width, height);
 
         const effectiveGlowIntensity = this.isBeatActive ? this.config.glowIntensity * 2.5 : this.config.glowIntensity;
@@ -172,7 +175,6 @@ class Visualizer {
     drawNormalBars(width, height, dpr, glow) {
         const barSpacing = this.barSpacing * dpr;
         const barWidth = (width - (this.config.bandCount - 1) * barSpacing) / this.config.bandCount;
-
         this.renderBars(0, width, barWidth, barSpacing, this.displayedBands, this.peaks, dpr, glow);
     }
 
@@ -206,10 +208,9 @@ class Visualizer {
 
         for (let i = 0; i < this.config.bandCount; i++) {
             const val = bands[i] || 0;
+            if (val <= 0) continue;
+
             const barHeight = val * height;
-
-            if (val <= 0.001) continue;
-
             const x = startX + i * (barWidth + barSpacing);
             const y = height - barHeight;
 
@@ -225,7 +226,7 @@ class Visualizer {
             }
             ctx.fill();
 
-            if (this.config.peakIndicators && peaks[i] > 0.001) {
+            if (this.config.peakIndicators && peaks[i] > 0) {
                 const peakY = height - (peaks[i] * height);
                 const prevShadow = ctx.shadowBlur;
                 ctx.shadowBlur = 0;
@@ -258,10 +259,8 @@ class Visualizer {
         for (let i = 0; i < count; i++) {
             const x = i * step;
             const y = height - (bands[i] * height * 0.8) - (height * 0.1);
-
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
+            if (i === 0) ctx.moveTo(x, y);
+            else {
                 const prevX = (i - 1) * step;
                 const prevY = height - (bands[i-1] * height * 0.8) - (height * 0.1);
                 const cpX = (prevX + x) / 2;
@@ -294,7 +293,7 @@ class Visualizer {
     }
 
     animate() {
-        this.applyDecay(); // Zawsze aplikuj decay
+        this.updateAnimationStep();
         this.draw();
         requestAnimationFrame(() => this.animate());
     }

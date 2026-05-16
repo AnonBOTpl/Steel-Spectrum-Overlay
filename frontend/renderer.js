@@ -86,6 +86,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Ręczne przeciąganie okna (Manual Drag) - Poprawiona logika płynności
+    let isDragging = false;
+    let lastMouseX, lastMouseY;
+
+    document.addEventListener('mousedown', (e) => {
+        // Tylko lewy przycisk i nie na panelu ustawień
+        if (e.button === 0 && !e.target.closest('#settings-panel')) {
+            isDragging = true;
+            lastMouseX = e.screenX;
+            lastMouseY = e.screenY;
+        }
+    }, true);
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const dx = e.screenX - lastMouseX;
+            const dy = e.screenY - lastMouseY;
+
+            if (dx !== 0 || dy !== 0) {
+                window.electronAPI.moveWindowRelative(dx, dy);
+                lastMouseX = e.screenX;
+                lastMouseY = e.screenY;
+            }
+        }
+    }, true);
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    }, true);
+
     // Double click -> Toggle Click-Through (na obszarze aplikacji, poza panelem)
     document.addEventListener('dblclick', async (e) => {
         if (e.target.closest('#controls-overlay') || e.target.closest('#settings-panel')) {

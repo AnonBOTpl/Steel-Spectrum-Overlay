@@ -104,6 +104,13 @@ ipcMain.on('move-window', (event, { x, y }) => {
     }
 });
 
+ipcMain.on('move-window-relative', (event, { dx, dy }) => {
+    if (mainWindow) {
+        const [x, y] = mainWindow.getPosition();
+        mainWindow.setPosition(x + dx, y + dy);
+    }
+});
+
 ipcMain.handle('toggle-click-through', (event, ignore) => {
     if (mainWindow) {
         mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
