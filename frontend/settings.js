@@ -1,7 +1,85 @@
+class VerticalSlider {
+    constructor(track, min, max, step, value, onChange) {
+        this.track = track;
+        this.fill = track.querySelector('.vslider-fill');
+        this.thumb = track.querySelector('.vslider-thumb');
+        this.min = min;
+        this.max = max;
+        this.step = step;
+        this.value = value;
+        this.onChange = onChange;
+        this._dragging = false;
+
+        this._render();
+        this._bindEvents();
+    }
+
+    _valueToPercent(v) {
+        return (v - this.min) / (this.max - this.min);
+    }
+
+    _percentToValue(p) {
+        const raw = p * (this.max - this.min) + this.min;
+        const stepped = Math.round(raw / this.step) * this.step;
+        return Math.min(this.max, Math.max(this.min, parseFloat(stepped.toFixed(4))));
+    }
+
+    _render() {
+        const pct = this._valueToPercent(this.value) * 100;
+        this.fill.style.height = `${pct}%`;
+        this.thumb.style.bottom = `calc(${pct}% - 6px)`;
+    }
+
+    _posToValue(clientY) {
+        const rect = this.track.getBoundingClientRect();
+        const p = 1 - (clientY - rect.top) / rect.height;
+        return this._percentToValue(Math.min(1, Math.max(0, p)));
+    }
+
+    _bindEvents() {
+        this.track.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this._dragging = true;
+            this._update(e.clientY);
+
+            const onMove = (ev) => { if (this._dragging) this._update(ev.clientY); };
+            const onUp = () => {
+                this._dragging = false;
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        this.track.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? this.step : -this.step;
+            this.setValue(parseFloat((this.value + delta).toFixed(4)));
+            this.onChange(this.value);
+        }, { passive: false });
+    }
+
+    _update(clientY) {
+        const newVal = this._posToValue(clientY);
+        if (newVal !== this.value) {
+            this.value = newVal;
+            this._render();
+            this.onChange(this.value);
+        }
+    }
+
+    setValue(v) {
+        this.value = Math.min(this.max, Math.max(this.min, v));
+        this._render();
+    }
+}
+
 class SettingsManager {
     constructor() {
         this.config = null;
         this.saveTimeout = null;
+        this._sliders = [];
         this.init();
     }
 
@@ -17,7 +95,6 @@ class SettingsManager {
         this.updateCalibration();
         this.initBackendStatus();
 
-        // Nasłuchiwanie na aktualizacje konfiguracji z innych okien
         window.electronAPI.onConfigUpdated((newConfig) => {
             this.config = newConfig;
             this.applyConfigToUI();
@@ -55,7 +132,6 @@ class SettingsManager {
             });
         });
 
-        // Specjalna obsługa dla kolorów - natychmiastowy preview
         document.querySelectorAll('input[type="color"]').forEach(input => {
             input.addEventListener('input', (e) => {
                 const path = input.getAttribute('data-setting');
@@ -165,6 +241,7 @@ class SettingsManager {
         const grid = document.getElementById('band-gains-grid');
         if (!grid) return;
         grid.innerHTML = '';
+        this._sliders = [];
 
         const count = this.config.audio.bandCount;
         if (!this.config.audio.bandGains || this.config.audio.bandGains.length !== count) {
@@ -172,33 +249,32 @@ class SettingsManager {
         }
         const gains = this.config.audio.bandGains;
 
-        grid.style.gridTemplateColumns = `repeat(${count <= 16 ? count : 16}, 1fr)`;
-
         for (let i = 0; i < count; i++) {
             const val = gains[i];
             const cell = document.createElement('div');
             cell.className = 'gain-cell';
             cell.innerHTML = `
                 <span class="gain-label">B${i + 1}</span>
-                <input type="range" class="gain-slider" data-band="${i}" min="0" max="2" step="0.05" value="${val}" orient="vertical">
+                <div class="vslider-track" data-band="${i}">
+                    <div class="vslider-fill" id="gain-fill-${i}"></div>
+                    <div class="vslider-thumb" id="gain-thumb-${i}"></div>
+                </div>
                 <span class="gain-value" id="gain-v-${i}">${val.toFixed(2)}</span>
             `;
             grid.appendChild(cell);
-        }
 
-        grid.querySelectorAll('.gain-slider').forEach(slider => {
-            slider.addEventListener('input', (e) => {
-                const bandIndex = parseInt(e.target.dataset.band);
-                const value = parseFloat(e.target.value);
-                this.config.audio.bandGains[bandIndex] = value;
-                const label = document.getElementById(`gain-v-${bandIndex}`);
+            const track = cell.querySelector('.vslider-track');
+            const slider = new VerticalSlider(track, 0, 2, 0.05, val, (newVal) => {
+                this.config.audio.bandGains[i] = newVal;
+                const label = document.getElementById(`gain-v-${i}`);
                 if (label) {
-                    label.textContent = value.toFixed(2);
-                    label.style.color = value > 1.05 ? '#00ff88' : value < 0.95 ? '#ff5555' : '#e0e0e0';
+                    label.textContent = newVal.toFixed(2);
+                    label.style.color = newVal > 1.05 ? '#00ff88' : newVal < 0.95 ? '#ff5555' : '#e0e0e0';
                 }
                 this.debouncedSave();
             });
-        });
+            this._sliders.push(slider);
+        }
 
         const resetBtn = document.getElementById('reset-gains-btn');
         if (resetBtn) {
@@ -206,7 +282,14 @@ class SettingsManager {
             resetBtn.parentNode.replaceChild(newBtn, resetBtn);
             newBtn.addEventListener('click', () => {
                 this.config.audio.bandGains = new Array(count).fill(1.0);
-                this.initBandGainsGrid();
+                this._sliders.forEach(s => s.setValue(1.0));
+                for (let i = 0; i < count; i++) {
+                    const label = document.getElementById(`gain-v-${i}`);
+                    if (label) {
+                        label.textContent = '1.00';
+                        label.style.color = '#e0e0e0';
+                    }
+                }
                 this.debouncedSave();
             });
         }
@@ -266,6 +349,7 @@ class SettingsManager {
         const defaults = {
             "version": 1,
             "window": { "x": null, "y": null, "width": 800, "height": 200, "displayId": 0 },
+            "settingsWindow": { "width": 480, "height": 650 },
             "audio": {
                 "bandCount": 16,
                 "sensitivity": 1.0,

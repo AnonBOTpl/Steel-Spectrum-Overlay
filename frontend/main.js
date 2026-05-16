@@ -28,7 +28,6 @@ function saveConfig(config) {
         console.error('Błąd podczas zapisywania config.json:', err);
         return;
     }
-    // Rozsyłamy aktualizację do wszystkich okien tylko po udanym zapisie
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('config-updated', config);
     if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send('config-updated', config);
 }
@@ -55,11 +54,7 @@ function createTray() {
             buffer[idx + 3] = 255;                          // A: 255
         }
     }
-    const trayIcon = nativeImage.createFromBuffer(buffer, {
-        width: size,
-        height: size,
-        scaleFactor: 1.0
-    });
+    const trayIcon = nativeImage.createFromBuffer(buffer, { width: size, height: size, scaleFactor: 1.0 });
 
     tray = new Tray(trayIcon);
     tray.setToolTip('Steel Spectrum Overlay');
@@ -122,14 +117,20 @@ function createSettingsWindow() {
         return;
     }
 
+    const config = loadConfig();
+    const savedW = config.settingsWindow?.width || 480;
+    const savedH = config.settingsWindow?.height || 650;
+
     settingsWindow = new BrowserWindow({
-        width: 480,
-        height: 650,
+        width: Math.max(480, savedW),
+        height: Math.max(550, savedH),
+        minWidth: 480,
+        minHeight: 550,
         title: 'Steel Spectrum — Ustawienia',
         frame: true,
         transparent: false,
         alwaysOnTop: true,
-        resizable: false,
+        resizable: true,
         backgroundColor: '#0a0a0f',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -140,6 +141,20 @@ function createSettingsWindow() {
 
     settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
     settingsWindow.setMenuBarVisibility(false);
+
+    let resizeTimeout;
+    settingsWindow.on('resize', () => {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (!settingsWindow || settingsWindow.isDestroyed()) return;
+            const [w, h] = settingsWindow.getSize();
+            const currentConfig = loadConfig();
+            if (!currentConfig.settingsWindow) currentConfig.settingsWindow = {};
+            currentConfig.settingsWindow.width = w;
+            currentConfig.settingsWindow.height = h;
+            saveConfig(currentConfig);
+        }, 400);
+    });
 
     settingsWindow.on('closed', () => {
         settingsWindow = null;
@@ -336,10 +351,20 @@ ipcMain.handle('import-theme', async () => {
         filters: [{ name: 'JSON', extensions: ['json'] }],
         properties: ['openFile']
     });
-    if (filePaths && filePaths.length > 0) {
-        return JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
+    if (!filePaths || filePaths.length === 0) return null;
+    try {
+        const raw = fs.readFileSync(filePaths[0], 'utf8');
+        const data = JSON.parse(raw);
+        const t = data.visuals || data;
+        if (!t.name || !Array.isArray(t.barGradient) || !t.peakColor || !t.glowColor) {
+            console.error('Import motywu: niepoprawna struktura pliku');
+            return null;
+        }
+        return data;
+    } catch (err) {
+        console.error('Import motywu: błąd parsowania JSON:', err.message);
+        return null;
     }
-    return null;
 });
 
 ipcMain.on('open-settings-window', () => createSettingsWindow());
