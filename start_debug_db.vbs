@@ -1,19 +1,16 @@
+Set fso      = CreateObject("Scripting.FileSystemObject")
 Set WshShell = CreateObject("WScript.Shell")
-strPath = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
+strPath = fso.GetParentFolderName(WScript.ScriptFullName)
 
-Dim pythonCmd
-pythonCmd = "python" ' Domyślny fallback dla debug
+Dim electronCmd
+Dim localElectron
+localElectron = strPath & "\node_modules\.bin\electron.cmd"
 
-On Error Resume Next
-If WshShell.Run("py --version", 0, True) = 0 Then
-    pythonCmd = "py"
-ElseIf WshShell.Run("python --version", 0, True) = 0 Then
-    pythonCmd = "python"
+If fso.FileExists(localElectron) Then
+    electronCmd = """" & localElectron & """ """ & strPath & """ --mode db"
+Else
+    electronCmd = "electron """ & strPath & """ --mode db"
 End If
-On Error GoTo 0
-
-WshShell.CurrentDirectory = strPath & "\backend"
-WshShell.Run "cmd /k " & pythonCmd & " audio_server.py --bands 16 --mode db", 1, False
 
 WshShell.CurrentDirectory = strPath
-WshShell.Run "cmd /k npx electron .", 1, False
+WshShell.Run "cmd /k " & electronCmd, 1, False

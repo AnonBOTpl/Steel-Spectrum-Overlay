@@ -1,29 +1,16 @@
-Set fso = CreateObject("Scripting.FileSystemObject")
+Set fso      = CreateObject("Scripting.FileSystemObject")
 Set WshShell = CreateObject("WScript.Shell")
 strPath = fso.GetParentFolderName(WScript.ScriptFullName)
 
-Dim pythonCmd
-pythonCmd = "pythonw" ' Domyślny fallback
+Dim electronCmd
+Dim localElectron
+localElectron = strPath & "\node_modules\.bin\electron.cmd"
 
-On Error Resume Next
-If WshShell.Run("py --version", 0, True) = 0 Then
-    pythonCmd = "py"
-ElseIf WshShell.Run("python --version", 0, True) = 0 Then
-    pythonCmd = "python"
-End If
-On Error GoTo 0
-
-WshShell.CurrentDirectory = strPath & "\backend"
-WshShell.Run pythonCmd & " audio_server.py --bands 16 --mode db", 0, False
-
-WScript.Sleep 2000
-
-Dim electronPath
-electronPath = strPath & "\node_modules\.bin\electron.cmd"
-If fso.FileExists(electronPath) Then
-    WshShell.CurrentDirectory = strPath
-    WshShell.Run """" & electronPath & """ .", 0, False
+If fso.FileExists(localElectron) Then
+    electronCmd = """" & localElectron & """ """ & strPath & """ --mode db"
 Else
-    WshShell.CurrentDirectory = strPath
-    WshShell.Run "npx electron .", 0, False
+    electronCmd = "electron """ & strPath & """ --mode db"
 End If
+
+WshShell.CurrentDirectory = strPath
+WshShell.Run electronCmd, 0, False
