@@ -1,6 +1,6 @@
 {
   "name": "steel-spectrum-overlay",
-  "version": "1.0.0",
+  "version": "1.9.1",
   "description": "Zaawansowany, przezroczysty wizualizator audio na pulpit Windows",
   "main": "frontend/main.js",
   "scripts": {

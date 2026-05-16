@@ -45,7 +45,7 @@ class Visualizer {
 
     initBandCorrection() {
         const count = this.config.bandCount;
-        const TREBLE_EXPONENT = 1.0; // 1.0 = 10x boost dla treble
+        const TREBLE_EXPONENT = 0.8; // Zredukowano z 1.0 dla uniknięcia przesterowania
         this.bandCorrection = new Array(count).fill(0).map((_, i) => {
             const t = i / (count - 1 || 1);
             // Krzywa wykładnicza dla lepszego balansu tonów wysokich
