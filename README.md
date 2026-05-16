@@ -12,6 +12,7 @@ Zaawansowany, przezroczysty wizualizator audio na pulpit Windows. Widget działa
 ## 📸 Podgląd
 
 > Widget wyświetla 8, 12, 16 lub 32 pasma częstotliwości w skali logarytmicznej z płynną animacją i konfigurowalną poświatą. Dostępnych jest 5 wbudowanych motywów kolorystycznych oraz możliwość tworzenia własnych.
+<img width="1340" height="769" alt="{DA5C964A-E851-4752-B3E7-E7A8C92C9E22}" src="https://github.com/user-attachments/assets/d491ef1b-3ca5-4840-ab64-c124b30778a5" />
 
 ---
 
