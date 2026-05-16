@@ -157,10 +157,21 @@
                 </div>
             </section>
 
-            <!-- Sekcja Kalibracja -->
-            <section>
+            <!-- Sekcja Kalibracja i Equalizer -->
+            <section id="calibration-section">
                 <h3>Kalibracja (Raw Values)</h3>
-                <div id="calibration-grid" class="raw-grid"></div>
+                <div id="calibration-grid" class="raw-grid">
+                    <!-- Generowane dynamicznie przez settings.js -->
+                </div>
+
+                <h3 style="margin-top: 20px;">Equalizer per-pasmo</h3>
+                <p class="hint">Indywidualne wzmocnienie każdego pasma (0.0 – 2.0). Domyślnie: 1.0</p>
+                <div id="band-gains-grid" class="band-gains-grid">
+                    <!-- Generowane dynamicznie przez settings.js -->
+                </div>
+                <div class="button-group" style="margin-top: 8px;">
+                    <button id="reset-gains-btn">Reset gainów do 1.0</button>
+                </div>
             </section>
         </div>
     </div>

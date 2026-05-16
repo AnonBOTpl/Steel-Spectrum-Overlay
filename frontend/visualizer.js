@@ -16,7 +16,8 @@ class Visualizer {
             oscilloscopeMode: false,
             beatDetection: true,
             beatThreshold: 0.7,
-            background: { enabled: false, color: "#000000", opacity: 0.5, borderRadius: 8 }
+            background: { enabled: false, color: "#000000", opacity: 0.5, borderRadius: 8 },
+            bandGains: []
         };
 
         this.currentTheme = null;
@@ -45,7 +46,6 @@ class Visualizer {
     initBandCorrection() {
         this.bandCorrection = new Array(this.config.bandCount).fill(0).map((_, i) => {
             const t = i / (this.config.bandCount - 1 || 1);
-            // NOWA korekcja - łagodniejsza (bass x1.0, treble x2.5)
             return 1.0 + t * 1.5;
         });
     }
@@ -55,10 +55,15 @@ class Visualizer {
         const oldBandCount = this.config.bandCount;
 
         if (newConfig.audio) {
-            this.config.bandCount = newConfig.audio.bandCount || this.config.bandCount;
-            this.config.sensitivity = newConfig.audio.sensitivity || this.config.sensitivity;
-            this.config.decayFactor = newConfig.audio.decayFactor || this.config.decayFactor;
+            // Zmiana || na ?? dla obsługi wartości 0
+            this.config.bandCount = newConfig.audio.bandCount ?? this.config.bandCount;
+            this.config.sensitivity = newConfig.audio.sensitivity ?? this.config.sensitivity;
+            this.config.decayFactor = newConfig.audio.decayFactor ?? this.config.decayFactor;
             this.config.peakIndicators = newConfig.audio.peakIndicators !== undefined ? newConfig.audio.peakIndicators : this.config.peakIndicators;
+
+            if (Array.isArray(newConfig.audio.bandGains)) {
+                this.config.bandGains = [...newConfig.audio.bandGains];
+            }
         }
 
         if (newConfig.visuals) {
@@ -87,6 +92,11 @@ class Visualizer {
         this.targetBands = new Array(count).fill(0);
         this.displayedBands = new Array(count).fill(0);
         this.peaks = new Array(count).fill(0);
+
+        // Inicjalizacja gainów jeśli brak
+        if (!this.config.bandGains || this.config.bandGains.length !== count) {
+            this.config.bandGains = new Array(count).fill(1.0);
+        }
     }
 
     resize() {
@@ -103,7 +113,8 @@ class Visualizer {
 
         const count = Math.min(bands.length, this.config.bandCount);
         for (let i = 0; i < count; i++) {
-            const rawValue = (bands[i] || 0) * this.config.sensitivity * (this.bandCorrection[i] || 1);
+            const gain = (this.config.bandGains && this.config.bandGains[i] !== undefined) ? this.config.bandGains[i] : 1.0;
+            const rawValue = (bands[i] || 0) * this.config.sensitivity * (this.bandCorrection[i] || 1) * gain;
             this.targetBands[i] = Math.min(Math.max(rawValue, 0), 1);
         }
 
@@ -145,7 +156,6 @@ class Visualizer {
 
         ctx.clearRect(0, 0, width, height);
 
-        // Rysuj tło jeśli włączone
         if (this.config.background && this.config.background.enabled) {
             const bg = this.config.background;
             const r = parseInt(bg.color.slice(1, 3), 16);
