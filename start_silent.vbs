@@ -4,13 +4,15 @@ strPath = fso.GetParentFolderName(WScript.ScriptFullName)
 
 ' Znajdź python — próbuj py launcher (Windows), potem python, potem pythonw
 Dim pythonCmd
+pythonCmd = "pythonw" ' Domyślny fallback
+
+On Error Resume Next
 If WshShell.Run("py --version", 0, True) = 0 Then
     pythonCmd = "py"
 ElseIf WshShell.Run("python --version", 0, True) = 0 Then
     pythonCmd = "python"
-Else
-    pythonCmd = "pythonw"
 End If
+On Error GoTo 0
 
 ' Uruchom backend w tle (okno=0, nie czekaj)
 WshShell.CurrentDirectory = strPath & "\backend"

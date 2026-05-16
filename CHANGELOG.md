@@ -2,10 +2,17 @@
 
 Wszystkie istotne zmiany w projekcie Steel-Spectrum-Overlay.
 
+## [1.9.1] - 2025-05-13
+
+### Naprawiono
+- Poprawiono błędy wykonania w skryptach VBS przy braku interpreterów w ścieżce PATH.
+- Zoptymalizowano korekcję wysokich tonów w celu uniknięcia wizualnego przesterowania.
+- Ujednolicono logikę detekcji Pythona we wszystkich skryptach startowych.
+
 ## [1.9.0] - 2025-05-13
 
 ### Dodano
-- Wykładnicza korekcja częstotliwości wysokich tonów (do 10x boost dla treble), co zapewnia idealny balans wizualny pasm.
+- Wykładnicza korekcja częstotliwości wysokich tonów, zapewniająca idealny balans wizualny pasm.
 - Rozszerzony zakres Equalizera: od 0.0 do 5.0 z nowymi liniami referencyjnymi (punkt neutralny 1.0).
 - Inteligentna detekcja Pythona w skryptach startowych (py / python / pythonw).
 - Bezpośrednie wywoływanie lokalnego Electrona ze ścieżki bezwzględnej w trybie silent.
