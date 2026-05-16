@@ -2,6 +2,16 @@
 
 Wszystkie istotne zmiany w projekcie Steel-Spectrum-Overlay.
 
+## [1.9.2] - 2025-05-13
+
+### Dodano
+- Automatyczne zarządzanie procesem backendu przez Electron (uruchamianie i zamykanie).
+- Uproszczone skrypty startowe VBS wykorzystujące nową architekturę.
+- Obsługa argumentów CLI w Electronie do sterowania trybem audio backendu.
+
+### Naprawiono
+- Poprawiono stabilność uruchamiania w trybie silent – teraz Electron dba o start serwera audio.
+
 ## [1.9.1] - 2025-05-13
 
 ### Naprawiono

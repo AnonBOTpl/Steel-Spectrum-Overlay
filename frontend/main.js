@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen, dialog, Menu, Tray, nativeImage, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn, execSync } = require('child_process');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
@@ -8,6 +9,7 @@ let mainWindow;
 let settingsWindow;
 let tray;
 let isBackendConnected = false;
+let backendProcess = null;
 
 function loadConfig() {
     try {
@@ -32,6 +34,63 @@ function saveConfig(config) {
     if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send('config-updated', config);
 }
 
+function startBackend() {
+    if (backendProcess) return;
+
+    const config = loadConfig() || {};
+    const audioConfig = config.audio || { bandCount: 16, mode: 'magnitude', sensitivity: 1.0 };
+
+    // Sprawdź czy tryb został wymuszony przez argument CLI Electrona
+    let mode = audioConfig.mode;
+    if (process.argv.includes('--mode')) {
+        const idx = process.argv.indexOf('--mode');
+        if (process.argv[idx + 1]) mode = process.argv[idx + 1];
+    }
+
+    // Wykrywanie Pythona
+    let pythonCmd = 'pythonw';
+    const checks = ['py', 'python', 'pythonw'];
+    for (const cmd of checks) {
+        try {
+            execSync(`${cmd} --version`, { stdio: 'ignore' });
+            pythonCmd = cmd;
+            break;
+        } catch (e) {}
+    }
+
+    const backendPath = path.join(__dirname, '..', 'backend', 'audio_server.py');
+    const args = [
+        backendPath,
+        '--bands', audioConfig.bandCount || 16,
+        '--mode', mode || 'magnitude',
+        '--sensitivity', audioConfig.sensitivity || 1.0
+    ];
+
+    console.log(`Uruchamianie backendu: ${pythonCmd} ${args.join(' ')}`);
+
+    backendProcess = spawn(pythonCmd, args, {
+        cwd: path.join(__dirname, '..', 'backend'),
+        detached: false,
+        stdio: 'pipe'
+    });
+
+    backendProcess.stdout.on('data', (data) => console.log(`[Backend]: ${data}`));
+    backendProcess.stderr.on('data', (data) => console.error(`[Backend ERR]: ${data}`));
+
+    backendProcess.on('close', (code) => {
+        console.log(`Backend zakończony z kodem: ${code}`);
+        backendProcess = null;
+    });
+}
+
+function stopBackend() {
+    if (backendProcess) {
+        console.log('Zamykanie procesu backendu...');
+        backendProcess.kill();
+        backendProcess = null;
+    }
+}
+
 function setBackendStatus(connected) {
     isBackendConnected = connected;
     if (mainWindow && !mainWindow.isDestroyed())
@@ -48,10 +107,10 @@ function createTray() {
         for (let x = 0; x < size; x++) {
             const idx = (y * size + x) * 4;
             const t = x / size;
-            buffer[idx]     = Math.round(t * 255);         // R: 0->255
-            buffer[idx + 1] = Math.round((1 - t) * 255);  // G: 255->0
-            buffer[idx + 2] = 255;                          // B: 255
-            buffer[idx + 3] = 255;                          // A: 255
+            buffer[idx]     = Math.round(t * 255);
+            buffer[idx + 1] = Math.round((1 - t) * 255);
+            buffer[idx + 2] = 255;
+            buffer[idx + 3] = 255;
         }
     }
     const trayIcon = nativeImage.createFromBuffer(buffer, { width: size, height: size, scaleFactor: 1.0 });
@@ -260,6 +319,7 @@ function createWindow() {
 
         createTray();
         registerShortcuts();
+        startBackend(); // Start backendu przy starcie Electrona
     });
 
     let moveTimeout;
@@ -284,6 +344,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
     globalShortcut.unregisterAll();
+    stopBackend(); // Zamknięcie backendu przy wyjściu
 });
 
 ipcMain.on('move-window', (event, { x, y }) => {
@@ -351,20 +412,10 @@ ipcMain.handle('import-theme', async () => {
         filters: [{ name: 'JSON', extensions: ['json'] }],
         properties: ['openFile']
     });
-    if (!filePaths || filePaths.length === 0) return null;
-    try {
-        const raw = fs.readFileSync(filePaths[0], 'utf8');
-        const data = JSON.parse(raw);
-        const t = data.visuals || data;
-        if (!t.name || !Array.isArray(t.barGradient) || !t.peakColor || !t.glowColor) {
-            console.error('Import motywu: niepoprawna struktura pliku');
-            return null;
-        }
-        return data;
-    } catch (err) {
-        console.error('Import motywu: błąd parsowania JSON:', err.message);
-        return null;
+    if (filePaths && filePaths.length > 0) {
+        return JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
     }
+    return null;
 });
 
 ipcMain.on('open-settings-window', () => createSettingsWindow());
