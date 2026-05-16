@@ -18,7 +18,7 @@ class AudioServer:
     def __init__(self, bands=16, port=8765, sensitivity=1.0, demo=False, mode='magnitude'):
         self.bands_count = bands
         self.port = port
-        self.sensitivity = sensitivity # Używane jako mnożnik normalizacji
+        self.sensitivity = sensitivity # Sensitivity jako mnożnik normalizacji
         self.demo = demo
         self.mode = mode # 'magnitude' lub 'db'
         self.clients = set()
@@ -26,11 +26,9 @@ class AudioServer:
 
         # Inicjalizacja danych
         self.current_bands = np.zeros(self.bands_count)
-        self.peaks = np.zeros(self.bands_count)
         self.last_sent_bands = np.zeros(self.bands_count)
 
-        # Parametry detekcji szczytów i przetwarzania
-        self.peak_decay = 0.99
+        # Parametry przetwarzania
         self.delta_threshold = 0.005
         self.min_sum_threshold = 0.05
 
@@ -69,7 +67,7 @@ class AudioServer:
         await asyncio.gather(*[client.send(message) for client in self.clients], return_exceptions=True)
 
     def process_audio_data(self, audio_data):
-        """Przetwarza surowe dane audio (FFT, pasma, szczyty)."""
+        """Przetwarza surowe dane audio (FFT, pasma)."""
         if len(audio_data) < self.chunk_size:
             return
 
@@ -82,30 +80,20 @@ class AudioServer:
                 raw = np.mean(fft_res[indices])
 
                 if self.mode == 'db':
-                    # Tryb dB - poprawna normalizacja
-                    # Typowy zakres FFT dla float32 WASAPI to ok. 0-2000
+                    # Tryb dB - poprawna normalizacja z uwzględnieniem sensitivity
                     normalized_raw = raw / 2000.0
                     normalized_raw = np.clip(normalized_raw, 1e-9, 1.0)
-                    db_val = 20 * np.log10(normalized_raw) # zakres: -180 do 0 dB
-                    # Mapuj [-60dB, 0dB] -> [0.0, 1.0]
-                    val = (db_val + 60.0) / 60.0
-                    val = float(np.clip(val, 0.0, 1.0))
+                    db_val = 20 * np.log10(normalized_raw)
+                    val = ((db_val + 60.0) / 60.0) * self.sensitivity
                 else:
-                    # Tryb magnitude - liniowy
-                    val = raw / 50.0
+                    # Tryb magnitude - liniowy z uwzględnieniem sensitivity
+                    val = (raw / 50.0) * self.sensitivity
 
                 if val < 0.001:
                     val = 0.0
                 new_bands[i] = np.clip(val, 0.0, 1.0)
 
         self.current_bands = new_bands
-
-        # Aktualizacja szczytów (peak detection)
-        for i in range(self.bands_count):
-            if self.current_bands[i] > self.peaks[i]:
-                self.peaks[i] = self.current_bands[i]
-            else:
-                self.peaks[i] = max(self.current_bands[i], self.peaks[i] * self.peak_decay)
 
     def generate_demo_data(self):
         """Generuje syntetyczne dane do trybu demo."""
@@ -117,16 +105,9 @@ class AudioServer:
         else:
             new_bands = np.zeros(self.bands_count)
             for i in range(self.bands_count):
-                val = (np.sin(t * (i + 1) * 2) + 1) / 2.0 * np.random.uniform(0.5, 1.0)
+                val = (np.sin(t * (i + 1) * 2) + 1) / 2.0 * np.random.uniform(0.5, 1.0) * self.sensitivity
                 new_bands[i] = np.clip(val, 0.0, 1.0)
             self.current_bands = new_bands
-
-        # Aktualizacja szczytów
-        for i in range(self.bands_count):
-            if self.current_bands[i] > self.peaks[i]:
-                self.peaks[i] = self.current_bands[i]
-            else:
-                self.peaks[i] = max(self.current_bands[i], self.peaks[i] * self.peak_decay)
 
     def should_send_update(self):
         """Sprawdza delta threshold (0.5% zmiany w dowolnym paśmie)."""
@@ -207,7 +188,6 @@ class AudioServer:
                 if self.should_send_update():
                     data = {
                         "bands": self.current_bands.tolist(),
-                        "peaks": self.peaks.tolist(),
                         "band_count": self.bands_count,
                         "mode": self.mode
                     }

@@ -7,6 +7,10 @@
     "height": 200,
     "displayId": 0
   },
+  "settingsWindow": {
+    "width": 480,
+    "height": 650
+  },
   "audio": {
     "bandCount": 16,
     "sensitivity": 1.0,
