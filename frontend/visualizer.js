@@ -217,7 +217,7 @@ class Visualizer {
             }
             ctx.fill();
 
-            if (this.config.peakIndicators && peaks[i] > 0.002) {
+            if (this.config.peakIndicators && peaks[i] > 0.001) {
                 const peakY = height - (peaks[i] * height);
                 const prevShadow = ctx.shadowBlur;
                 ctx.shadowBlur = 0;
